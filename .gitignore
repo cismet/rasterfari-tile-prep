@@ -5,4 +5,7 @@ _*
 .Spotlight-V100
 .Trashes
 .zsh_history
+.githash
+.version
+.package.json.without.version
 
