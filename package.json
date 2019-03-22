@@ -1,6 +1,6 @@
 {
 	"name": "rasterfari-tile-prep-bplaene",
-	"version": "0.9.1",
+	"version": "0.9.2",
 	"main": "index.js",
 	"license": "MIT",
 	"config": {
