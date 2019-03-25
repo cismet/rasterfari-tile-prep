@@ -2,7 +2,7 @@ version: '2'
 
 services:
  rasterfari-bpl-prep:
-  image: cismet/rasterfari-tile-prep:latest
+  image: cismet/rasterfari-tile-prep-bplaene:latest
   network_mode: bridge
   volumes:
    - ./.zshrc:/root/.zshrc
