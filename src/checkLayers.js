@@ -10,7 +10,7 @@ const localPlanDump = true;
 const localCheckDump = true;
 const getTheMissingStuff = false;
 const tileChecking = true;
-const localChecks = false;
+const fileSystemChecks = true;
 
 let i = 0;
 let correctionDownloads = [];
@@ -26,7 +26,7 @@ let doclogs = {};
 let bplc;
 let tilechecks = [];
 
-const breaking = 100; //undefined; //100;
+const breaking = 3; //undefined; //100;
 
 async function checkUrlsSequentially(bplc) {
 	if (!localCheckDump) {
@@ -151,9 +151,9 @@ async function checkUrlsSequentially(bplc) {
 			nofTilechecks += doclogs[key].tilecheckurls[pagekey].length;
 		}
 		i++;
-		if (breaking && i >= breaking) {
-			break;
-		}
+			if (breaking && i >= breaking) {
+				break;
+			}
 	}
 	console.log('\n# tilechecks:' + nofTilechecks);
 
@@ -169,14 +169,28 @@ async function checkUrlsSequentially(bplc) {
 				for (const tileCheckUrl of doclogs[key].tilecheckurls[pagekey]) {
 					let resultTC;
 					try {
-						resultTC = await fetch(tileCheckUrl, {
-							method: 'get',
-							headers: {
-								'User-Agent':
-									'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like ' +
-									'Gecko) Chrome/56.0.2924.87 Safari/537.36'
+						if (!fileSystemChecks) {
+							resultTC = await fetch(tileCheckUrl, {
+								method: 'get',
+								headers: {
+									'User-Agent':
+										'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like ' +
+										'Gecko) Chrome/56.0.2924.87 Safari/537.36'
+								}
+							});
+						} else {
+							if (
+								fs.existsSync(
+									tileCheckUrl.replace('https://aaa.cismet.de/tiles/', '_tilesstoragemount')
+								)
+							) {
+								resultTC = {};
+								resultTC.status = 200;
+							} else {
+								resultTC = {};
+								resultTC.status = 404;
 							}
-						});
+						}
 					} catch (e) {
 						resultTC = {};
 						resultTC.status = 499;
@@ -188,7 +202,7 @@ async function checkUrlsSequentially(bplc) {
 					if (tcstatus !== 200) {
 						let tcobject = { bplan: doclogs[key].doc, page: pagekey, url: tileCheckUrl, status: tcstatus };
 						tilechecks.push(tcobject);
-						break;
+						//break;
 					}
 				}
 
@@ -199,7 +213,7 @@ async function checkUrlsSequentially(bplc) {
 				break;
 			}
 		}
-		fs.writeFileSync('_internal/tilechecks.json', JSON.stringify(tilechecks, null, 0), 'utf8');
+		fs.writeFileSync('_internal/tilechecks.json', JSON.stringify(tilechecks, null, 2), 'utf8');
 	}
 
 	return;
