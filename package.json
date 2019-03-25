@@ -15,7 +15,7 @@
 		"nodemon": "^1.18.10"
 	},
 	"scripts": {
-		"start": "nodemon --watch src/checkLayersByMeta.js --exec babel-node src/checkLayers.js",
+		"start": "nodemon --watch src/checkLayers.js --exec babel-node src/checkLayers.js",
 		"postversion": "sed '/^.*\"version\":.*$/d' package.json > .package.json.without.version && echo $npm_package_version > .version && git rev-parse HEAD > .githash",
 		"newSnapshot": "npm version preminor --preid=SNAPSHOT",
 		"bumpSnapshot": "npm version prerelease --preid=SNAPSHOT",
