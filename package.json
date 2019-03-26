@@ -16,6 +16,7 @@
 	},
 	"scripts": {
 		"start": "nodemon --watch src/checkLayers.js --exec babel-node src/checkLayers.js",
+		"getMissing": "babel-node src/getMissingFiles.js",
 		"postversion": "sed '/^.*\"version\":.*$/d' package.json > .package.json.without.version && echo $npm_package_version > .version && git rev-parse HEAD > .githash",
 		"newSnapshot": "npm version preminor --preid=SNAPSHOT",
 		"bumpSnapshot": "npm version prerelease --preid=SNAPSHOT",
