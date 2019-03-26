@@ -6,8 +6,8 @@ import { performance } from 'perf_hooks';
 import cliProgress from 'cli-progress';
 import { execSync } from 'child_process';
 
-const localPlanDump = true;
-const localCheckDump = true;
+const localPlanDump = false;
+const localCheckDump = false;
 const getTheMissingStuff = false;
 const tileChecking = true;
 const fileSystemChecks = true;
@@ -26,21 +26,24 @@ let doclogs = {};
 let bplc;
 let tilechecks = [];
 
-const breaking = 3; //undefined; //100;
+const breaking = undefined; //100;
 
 async function checkUrlsSequentially(bplc) {
 	if (!localCheckDump) {
 		if (!localPlanDump) {
 			console.log('Will get PlanDump ');
 
-			const response = await fetch('https://wunda-geoportal.cismet.de/gaz/bplaene_complete.json', {
-				method: 'get',
-				headers: {
-					'User-Agent':
-						'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like ' +
-						'Gecko) Chrome/56.0.2924.87 Safari/537.36'
+			const response = await fetch(
+				'https://wunda-geoportal.cismet.de/gaz/bplaene_complete.json',
+				{
+					method: 'get',
+					headers: {
+						'User-Agent':
+							'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like ' +
+							'Gecko) Chrome/56.0.2924.87 Safari/537.36'
+					}
 				}
-			});
+			);
 
 			let status = await response.status;
 			let content;
@@ -48,17 +51,24 @@ async function checkUrlsSequentially(bplc) {
 				try {
 					content = await response.json();
 				} catch (e) {
-					console.log('Could not download bplaene_complete.json. No need to continue.', e);
+					console.log(
+						'Could not download bplaene_complete.json. No need to continue.',
+						e
+					);
 					process.exit(1);
 				}
 			}
-			fs.writeFileSync('_internal/bplaene_complete.json', JSON.stringify(content, null, 0), 'utf8');
+			fs.writeFileSync(
+				'_internal/bplaene_complete.json',
+				JSON.stringify(content, null, 0),
+				'utf8'
+			);
 			console.log('PlanDump written');
 			bplc = content;
 		} else {
 			bplc = JSON.parse(fs.readFileSync('_internal/bplaene_complete.json', 'utf8'));
 			if (!bplc) {
-				onsole.log('Could not download bplaene_complete.json. No need to continue.', e);
+				console.log('Could not download bplaene_complete.json. No need to continue.', e);
 				process.exit(1);
 			}
 		}
@@ -75,9 +85,11 @@ async function checkUrlsSequentially(bplc) {
 					doc.url
 						.replace(/^http/, 'https')
 						.replace(/^httpss/, 'https')
-						.replace('https://www.wuppertal.de/geoportal/', 'https://aaa.cismet.de/tiles/')
+						.replace(
+							'https://www.wuppertal.de/geoportal/',
+							'https://aaa.cismet.de/tiles/'
+						)
 				);
-
 				let result = await getMetaInfoForUrl(testbaseurl);
 				let status = result.status;
 
@@ -94,7 +106,10 @@ async function checkUrlsSequentially(bplc) {
 						doc.url
 							.replace(/^http/, 'https')
 							.replace(/^httpss/, 'https')
-							.replace('https://www.wuppertal.de/geoportal/', 'https://aaa.cismet.de/tiles/')
+							.replace(
+								'https://www.wuppertal.de/geoportal/',
+								'https://aaa.cismet.de/tiles/'
+							)
 					);
 					pageCounter += meta.pages;
 					for (let i = 0; i < meta.pages; ++i) {
@@ -116,25 +131,6 @@ async function checkUrlsSequentially(bplc) {
 			}
 		}
 		fs.writeFileSync('_internal/doclogs.json', JSON.stringify(doclogs, null, 2), 'utf8');
-
-		let wgetConfig = {};
-		for (let dl of correctionDownloads) {
-			if (dl.endsWith('.pdf')) {
-				const dirKey = path
-					.dirname(dl)
-					.replace(/^https/, 'http')
-					.replace('http://www.wuppertal.de/geoportal/', '');
-				if (!fs.existsSync('./_in/' + dirKey + '/' + path.basename(dl))) {
-					if (wgetConfig[dirKey]) {
-						wgetConfig[dirKey].push(dl);
-					} else {
-						wgetConfig[dirKey] = [ dl ];
-					}
-				}
-			}
-		}
-
-		fs.writeFileSync('_internal/wgetConfig.json', JSON.stringify(wgetConfig, null, 0), 'utf8');
 	} else {
 		doclogs = JSON.parse(fs.readFileSync('_internal/doclogs.json', 'utf8'));
 		if (!doclogs) {
@@ -144,22 +140,21 @@ async function checkUrlsSequentially(bplc) {
 	}
 
 	let nofTilechecks = 0;
-	let i = 0;
+	i = 0;
 
 	for (const key in doclogs) {
 		for (const pagekey in doclogs[key].tilecheckurls) {
 			nofTilechecks += doclogs[key].tilecheckurls[pagekey].length;
 		}
 		i++;
-			if (breaking && i >= breaking) {
-				break;
-			}
+		if (breaking && i >= breaking) {
+			break;
+		}
 	}
 	console.log('\n# tilechecks:' + nofTilechecks);
 
 	if (tileChecking) {
 		//counting
-
 		bar2 = new cliProgress.Bar({}, cliProgress.Presets.shades_classic);
 		bar2.start(nofTilechecks, 0);
 		let tilecheckCounter = 0;
@@ -179,11 +174,13 @@ async function checkUrlsSequentially(bplc) {
 								}
 							});
 						} else {
-							if (
-								fs.existsSync(
-									tileCheckUrl.replace('https://aaa.cismet.de/tiles/', '_tilesstoragemount')
-								)
-							) {
+							let filename = tileCheckUrl.replace(
+								'https://aaa.cismet.de/tiles/',
+								'./_tilesstoragemount/'
+							);
+							//console.log('filecheck', filename);
+
+							if (fs.existsSync(filename)) {
 								resultTC = {};
 								resultTC.status = 200;
 							} else {
@@ -197,12 +194,21 @@ async function checkUrlsSequentially(bplc) {
 						console.log('Fehler', e);
 						break;
 					}
+
 					bar2.update(tilecheckCounter++);
 					let tcstatus = resultTC.status;
 					if (tcstatus !== 200) {
-						let tcobject = { bplan: doclogs[key].doc, page: pagekey, url: tileCheckUrl, status: tcstatus };
+						let tcobject = {
+							bplan: doclogs[key].doc,
+							page: pagekey,
+							url: tileCheckUrl,
+							status: tcstatus
+						};
 						tilechecks.push(tcobject);
-						//break;
+						if (correctionDownloads.indexOf(tcobject.bplan.url) === -1) {
+							correctionDownloads.push(tcobject.bplan.url);
+						}
+						break;
 					}
 				}
 
@@ -215,6 +221,27 @@ async function checkUrlsSequentially(bplc) {
 		}
 		fs.writeFileSync('_internal/tilechecks.json', JSON.stringify(tilechecks, null, 2), 'utf8');
 	}
+
+	let wgetConfig = {};
+	for (let dl of correctionDownloads) {
+		if (dl.endsWith('.pdf')) {
+			const dirKey = path
+				.dirname(dl)
+				.replace(/^https/, 'http')
+				.replace('http://www.wuppertal.de/geoportal/', '');
+			if (!fs.existsSync('./_in/' + dirKey + '/' + path.basename(dl))) {
+				if (wgetConfig[dirKey]) {
+					wgetConfig[dirKey].push(dl);
+				} else {
+					wgetConfig[dirKey] = [ dl ];
+				}
+			}
+		}
+	}
+
+	fs.writeFileSync('_internal/wgetConfig.json', JSON.stringify(wgetConfig, null, 0), 'utf8');
+
+	console.log('\ndone will exit');
 
 	return;
 	for (const key in wgetConfig) {
@@ -272,25 +299,46 @@ function fixUrlName(url) {
 }
 
 async function getMetaInfoForUrl(url) {
-	const response = await fetch(url + '/meta.json', {
-		method: 'get',
-		headers: {
-			'User-Agent':
-				'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like ' +
-				'Gecko) Chrome/56.0.2924.87 Safari/537.36'
-		}
-	});
+	let response;
+	if (!fileSystemChecks) {
+		response = await fetch(url + '/meta.json', {
+			method: 'get',
+			headers: {
+				'User-Agent':
+					'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like ' +
+					'Gecko) Chrome/56.0.2924.87 Safari/537.36'
+			}
+		});
 
-	let status = await response.status;
-	let content;
-	if (status === 200) {
-		try {
-			content = await response.json();
-		} catch (e) {
-			status = 406; //Not Acceptable > no valid json
+		let status = response.status;
+
+		let content;
+		if (status === 200) {
+			try {
+				content = await response.json();
+			} catch (e) {
+				status = 406; //Not Acceptable > no valid json
+			}
 		}
+		return { status, content };
+	} else {
+		let file =
+			url.replace('https://aaa.cismet.de/tiles/', './_tilesstoragemount/') + '/meta.json';
+
+		if (fs.existsSync(file)) {
+			response = {};
+			response.status = 200;
+			try {
+				response.content = JSON.parse(fs.readFileSync(file, 'utf8'));
+			} catch (e) {
+				response.status = 406; //Not Acceptable > no valid json
+			}
+		} else {
+			response = {};
+			response.status = 404;
+		}
+		return { status: response.status, content: response.content };
 	}
-	return { status, content };
 }
 let start = performance.now();
 //process.exit();
