@@ -6,7 +6,7 @@ import { performance } from 'perf_hooks';
 import cliProgress from 'cli-progress';
 import { execSync } from 'child_process';
 
-const localPlanDump = false;
+const localPlanDump = true;
 const localCheckDump = false;
 const getTheMissingStuff = false;
 const tileChecking = true;
@@ -95,6 +95,8 @@ async function checkUrlsSequentially(bplc) {
 
 				if (status !== 200) {
 					errors.push(testbaseurl + '/meta.json >> ' + status);
+					//console.log(testbaseurl + '/meta.json) >> ' + status);
+
 					correctionDownloads.push(doc.url);
 					let tcobject = { doc, testbaseurl, testbaseurlstatus: status };
 					doclogs[doc.file] = tcobject;
@@ -134,7 +136,7 @@ async function checkUrlsSequentially(bplc) {
 	} else {
 		doclogs = JSON.parse(fs.readFileSync('_internal/doclogs.json', 'utf8'));
 		if (!doclogs) {
-			onsole.log('Could not read doclogs.json. No need to continue.', e);
+			console.log('Could not read doclogs.json. No need to continue.', e);
 			process.exit(1);
 		}
 	}
@@ -282,7 +284,7 @@ function getTileCheckUrls(url, pages, pageNo, maxzoomlevel) {
 
 function fixUrlName(url) {
 	return url
-		.replace(/ /, '_')
+		.replace(/ /g, '_')
 		.replace(/A\u0308/g, 'AE')
 		.replace(/a\u0308/g, 'ae')
 		.replace(/u\u0308/g, 'ue')
