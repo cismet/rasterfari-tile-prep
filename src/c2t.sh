@@ -23,7 +23,7 @@ jpg=pictmpdir/$correctedtargetpath.jpg
 function stableconvert {
     echo convert """$1""" $2 
     convert -density 300 -background white -alpha remove -quality 100 """$1""" $2 
-    if [ $? == 1 ]; then
+    if [ $? == 11 ]; then
         echo imagemagick convert did not work. repair with gs then try again with poppler
         gs -o $2.pdf -sDEVICE=pdfwrite -dPDFSETTINGS=/prepress """$1"""
         pdftoppm $2.pdf | pnmtojpeg -quality 100 > $2
@@ -71,12 +71,14 @@ if [ "$pdfpages" -gt "1" ]; then
             else 
                 maxZoom=$(ls -1d $correctedfilename/*/ 2>/dev/null| awk -F "/" "{print \$(NF-1)}" | awk -F "/" "{print \$(NF-1)}" | sort -nr | head -n1)
                 echo $correctedfilename exists with $maxZoom Zoomlevels
+                echo $correctedfilename >> _internal/ok.txt
             fi
             sizes=$(identify -ping -format '"x":%[w], "y":%[h]' $picpath)
             sizesjson=$dqt$(echo size)$dqt:$sizes
             maxZoom=$(ls -1d $correctedfilename/*/ 2>/dev/null| awk -F "/" "{print \$(NF-1)}" | awk -F "/" "{print \$(NF-1)}" | sort -nr | head -n1)
             maxZoomJson=$(echo $dqt$(echo maxZoom)$dqt: $(echo $maxZoom))
-            echo $dqt$(echo layer$pageCounter)$dqt: { $(echo $sizes), $(echo $maxZoomJson)  }, >> $targetpath/meta.json
+            pageIndex=$(echo $correctedfilename |  awk -F- '{print $NF}')
+            echo $dqt$(echo layer$pageIndex)$dqt: { $(echo $sizes), $(echo $maxZoomJson)  }, >> $targetpath/meta.json
             let pageCounter++
     done
     pagesjson=$dqt$(echo pages)$dqt:$pageCounter, 
