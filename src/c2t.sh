@@ -23,7 +23,7 @@ jpg=pictmpdir/$correctedtargetpath.jpg
 function stableconvert {
     echo convert """$1""" $2 
     convert -density 300 -background white -alpha remove -quality 100 """$1""" $2 
-    if [ $? == 11 ]; then
+    if [ $? == 1 ]; then
         echo imagemagick convert did not work. repair with gs then try again with poppler
         gs -o $2.pdf -sDEVICE=pdfwrite -dPDFSETTINGS=/prepress """$1"""
         pdftoppm $2.pdf | pnmtojpeg -quality 100 > $2
