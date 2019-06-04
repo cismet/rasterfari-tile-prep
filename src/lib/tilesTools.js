@@ -3,7 +3,7 @@ import fetch from 'node-fetch';
 import path from 'path';
 import fs from 'fs-extra';
 import cliProgress from 'cli-progress';
-import produceExaminationPages from '../examinationPages';
+import produceExaminationPages from './examinationPages';
 
 export function getTileCheckUrls(url, pages, pageNo, maxzoomlevel) {
 	let ret = [];
@@ -44,27 +44,72 @@ export function getBaseUrl(doc_url) {
 	);
 }
 
-export async function getBPlanDB() {
-	console.log('Will get PlanDump ');
-
-	const response = await fetch('https://wunda-geoportal.cismet.de/gaz/bplaene_complete.json', {
-		method: 'get',
-		headers: {
-			'User-Agent':
-				'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like ' +
-				'Gecko) Chrome/56.0.2924.87 Safari/537.36'
+export async function getBPlanDB(ignoreMD5) {
+	const md5Response = await fetch(
+		'https://wunda-geoportal.cismet.de/gaz/bplaene_complete.json.md5',
+		{
+			method: 'get',
+			headers: {
+				'User-Agent':
+					'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like ' +
+					'Gecko) Chrome/56.0.2924.87 Safari/537.36',
+				'Cache-Control': 'no-cache'
+			}
 		}
-	});
-
-	let status = await response.status;
-	let content;
+	);
+	let status = await md5Response.status;
+	let webMD5;
 	if (status === 200) {
 		try {
-			content = await response.json();
+			webMD5 = await md5Response.text();
 		} catch (e) {
-			console.log('Could not download bplaene_complete.json. No need to continue.', e);
+			console.log('Could not download bplaene_complete.json.md5. No need to continue.', e);
 			return undefined;
 		}
+	}
+
+	let storedMD5;
+	try {
+		storedMD5 = fs.readFileSync('_internal/bplaene_complete.json.md5', 'utf8');
+	} catch (e) {
+		storedMD5 = '';
+	}
+	let content;
+
+	if (webMD5 === storedMD5) {
+		console.log('Will get PlanDump from cache.');
+
+		content = JSON.parse(fs.readFileSync('_internal/bplaene_complete.json', 'utf8'));
+	} else {
+		console.log('Will get PlanDump online.');
+
+		const response = await fetch(
+			'https://wunda-geoportal.cismet.de/gaz/bplaene_complete.json',
+			{
+				method: 'get',
+				headers: {
+					'User-Agent':
+						'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like ' +
+						'Gecko) Chrome/56.0.2924.87 Safari/537.36'
+				}
+			}
+		);
+
+		let status = await response.status;
+		if (status === 200) {
+			try {
+				content = await response.json();
+			} catch (e) {
+				console.log('Could not download bplaene_complete.json. No need to continue.', e);
+				return undefined;
+			}
+		}
+		fs.writeFileSync(
+			'_internal/bplaene_complete.json',
+			JSON.stringify(content, null, 0),
+			'utf8'
+		);
+		fs.writeFileSync('_internal/bplaene_complete.json.md5', webMD5, 'utf8');
 	}
 	return content;
 }
@@ -133,23 +178,9 @@ export async function checkUrlsSequentially(
 
 	const breaking = 3; //100;
 	if (!localCheckDump) {
-		if (!localPlanDump) {
-			bplc = await getBPlanDB();
-			if (bplc === undefined) {
-				process.exit(1);
-			}
-			fs.writeFileSync(
-				'_internal/bplaene_complete.json',
-				JSON.stringify(bplc, null, 0),
-				'utf8'
-			);
-			console.log('PlanDump written');
-		} else {
-			bplc = JSON.parse(fs.readFileSync('_internal/bplaene_complete.json', 'utf8'));
-			if (!bplc) {
-				console.log('Could not download bplaene_complete.json. No need to continue.', e);
-				process.exit(1);
-			}
+		bplc = await getBPlanDB();
+		if (bplc === undefined) {
+			process.exit(1);
 		}
 
 		bar1.start(breaking || bplc.length, 0);
@@ -221,7 +252,7 @@ export async function checkUrlsSequentially(
 		}
 		fs.writeFileSync('_internal/doclogs.json', JSON.stringify(doclogs, null, 2), 'utf8');
 		fs.writeFileSync(
-			'_internal/zommlevelzerourls.json',
+			'_internal/zoomlevelzerourls.json',
 			JSON.stringify(zoomlevelzerourls, null, 2),
 			'utf8'
 		);
@@ -244,7 +275,7 @@ export async function checkUrlsSequentially(
 		fs.writeFileSync('_internal/wgetConfig.json', JSON.stringify(wgetConfig, null, 0), 'utf8');
 	} else {
 		doclogs = JSON.parse(fs.readFileSync('_internal/doclogs.json', 'utf8'));
-		zoomlevelzerourls = JSON.parse(fs.readFileSync('_internal/zommlevelzerourls.json', 'utf8'));
+		zoomlevelzerourls = JSON.parse(fs.readFileSync('_internal/zoomlevelzerourls.json', 'utf8'));
 		if (!doclogs) {
 			console.log('Could not read doclogs.json. No need to continue.', e);
 			process.exit(1);
@@ -328,7 +359,7 @@ async function doTileChecking(nofTilechecks, doclogs, fileSystemChecks, breaking
 					break;
 				}
 
-				bar2.update(tilecheckCounter++);
+				bar2.update(++tilecheckCounter);
 				let tcstatus = resultTC.status;
 				if (tcstatus !== 200) {
 					let tcobject = {

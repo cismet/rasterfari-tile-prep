@@ -15,7 +15,7 @@
 		"nodemon": "^1.18.10"
 	},
 	"scripts": {
-		"start": "nodemon --watch src/produceExaminationPages.js --exec babel-node src/produceExaminationPages.js",
+		"start": "nodemon --watch src/. --exec babel-node src/devStart.js",
 		"checkLayers": "babel-node src/checkLayers.js",
 		"getMissingDocuments": "babel-node src/getMissingFiles.js",
 		"produceExaminationPages": "babel-node src/produceExaminationPages.js",
