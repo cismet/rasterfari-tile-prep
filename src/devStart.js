@@ -1,1 +1,3 @@
-require('./produceExaminationPages');
+import tiler from './lib/gdalTiling';
+
+tiler();

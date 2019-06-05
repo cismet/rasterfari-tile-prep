@@ -61,10 +61,10 @@ for file in $FilesFound; do
     #echo $targetpath| sed "s/ü/ue/"
     correctedfilename=$(echo $targetpath | sed "s/ /_/g; s/$(echo -ne 'a\u0308')/ae/g; s/$(echo -ne 'A\u0308')/AE/g; s/$(echo -ne 'u\u0308')/ue/g; s/$(echo -ne 'U\u0308')/UE/g; s/$(echo -ne 'o\u0308')/oe/g; s/$(echo -ne 'O\u0308')/OE/g; s/ä/ae/g; s/ü/ue/g; s/ö/oe/g;  s/Ä/AE/g; s/Ö/OE/g; s/Ü/UE/g; s/ß/ss/g;")
     # echo
-     #echo "c2t.sh $pdf $correctedfilename"
+    echo "c2t.sh $pdf $correctedfilename" "$pictmpdir"
     # echo
     # ./c2t.sh "$pdf" "$correctedfilename"
-    limiter; ./src/c2t.sh "$pdf" "$correctedfilename" "$pictmpdir" &
+    #limiter; ./src/c2t.sh "$pdf" "$correctedfilename" "$pictmpdir" &
     # pids[${i}]=$! 
     # echo ${pids[*]}
     # let "i++"

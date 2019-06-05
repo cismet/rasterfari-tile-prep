@@ -16,6 +16,7 @@
 	},
 	"scripts": {
 		"start": "nodemon --watch src/. --exec babel-node src/devStart.js",
+		"bplanProcessing": "babel-node src/bplanProcessing.js",
 		"checkLayers": "babel-node src/checkLayers.js",
 		"getMissingDocuments": "babel-node src/getMissingFiles.js",
 		"produceExaminationPages": "babel-node src/produceExaminationPages.js",
@@ -26,8 +27,10 @@
 		"publish:docker": "npm run build:docker; VERSION=`echo $npm_package_version| sed 's/\\.[0-9]*-SNAPSHOT.*$/-SNAPSHOT/'`; docker tag cismet/$npm_package_name:$VERSION $npm_package_config_dockerRegistryPath/$npm_package_name:$VERSION && docker push $npm_package_config_dockerRegistryPath/$npm_package_name:$VERSION"
 	},
 	"dependencies": {
+		"async": "^3.0.1",
 		"cli-progress": "^2.1.1",
 		"color-hash": "^1.0.3",
+		"find": "^0.3.0",
 		"fs-extra": "^7.0.1"
 	}
 }

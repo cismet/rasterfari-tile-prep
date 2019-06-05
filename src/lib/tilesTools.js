@@ -17,7 +17,7 @@ export function getTileCheckUrls(url, pages, pageNo, maxzoomlevel) {
 	return ret;
 }
 
-function fixUrlName(url) {
+export function fixUrlName(url) {
 	return url
 		.replace(/ /g, '_')
 		.replace(/A\u0308/g, 'AE')
@@ -157,12 +157,12 @@ export async function getMetaInfoForUrl(url, fileSystemChecks = false) {
 	}
 }
 export async function checkUrlsSequentially(
-	bplc,
-	localPlanDump = false,
-	localCheckDump = false,
-	tileChecking = true,
-	fileSystemChecks = false
+	breaking = 0,
+	tileChecking = false,
+	fileSystemChecks = false,
+	localCheckDump = true
 ) {
+	let bplc;
 	let i = 0;
 	let correctionDownloads = [];
 	let docsCounter = 0;
@@ -176,7 +176,6 @@ export async function checkUrlsSequentially(
 	let zoomlevelzerourls = [];
 	let wgetConfig = {};
 
-	const breaking = 3; //100;
 	if (!localCheckDump) {
 		bplc = await getBPlanDB();
 		if (bplc === undefined) {
@@ -312,7 +311,30 @@ export async function checkUrlsSequentially(
 
 	produceExaminationPages('allDocumentsExamination', zoomlevelzerourls);
 
-	return { docsCounter, bplanCounter, pageCounter, errors, downloadErrors };
+	const result = { docsCounter, bplanCounter, pageCounter, errors, downloadErrors, wgetConfig };
+	console.log('');
+	console.log(
+		'checked ' +
+			result.docsCounter +
+			' documents of ' +
+			result.bplanCounter +
+			' bplan-objects with ' +
+			result.pageCounter +
+			' pages altogether'
+	);
+	const problemCounter = result.errors.length;
+	if (problemCounter > 0) {
+		console.log('found ' + problemCounter + ' problems and downloaded the originals');
+	} else {
+		console.log('no problems. everything seems to be fine');
+	}
+	if (result.downloadErrors.length > 0) {
+		console.log('Download errors occured');
+		for (const e of result.downloadErrors) {
+			console.log(e);
+		}
+	}
+	return result;
 }
 
 async function doTileChecking(nofTilechecks, doclogs, fileSystemChecks, breaking) {
