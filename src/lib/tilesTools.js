@@ -160,7 +160,7 @@ export async function checkUrlsSequentially(
 	breaking = 0,
 	tileChecking = false,
 	fileSystemChecks = false,
-	localCheckDump = false
+	localCheckDump = false // good for debugging. if set to true you it will use old results
 ) {
 	let bplc;
 	let i = 0;
@@ -202,17 +202,21 @@ export async function checkUrlsSequentially(
 				let status = result.status;
 
 				if (status !== 200) {
-					errors.push(testbaseurl + '/meta.json >> ' + status);
-					//console.log(testbaseurl + '/meta.json) >> ' + status);
+					if (testbaseurl.endsWith('.pdf')) {
+						errors.push(testbaseurl + '/meta.json >> ' + status);
+						//console.log(testbaseurl + '/meta.json) >> ' + status);
 
-					correctionDownloads.push(doc.url);
-					let tcobject = {
-						doc,
-						testbaseurl,
-						testbaseurlstatus: status
-					};
-					doclogs[doc.file] = tcobject;
-					downloadsNeeded = downloadsNeeded + doc.url + '\n';
+						correctionDownloads.push(doc.url);
+						let tcobject = {
+							doc,
+							testbaseurl,
+							testbaseurlstatus: status
+						};
+						doclogs[doc.file] = tcobject;
+						downloadsNeeded = downloadsNeeded + doc.url + '\n';
+					} else {
+						console.log('will ignore the != 200 status of ', testbaseurl);
+					}
 				} else {
 					let meta = result.content;
 					let tilecheckurls = {};
@@ -309,7 +313,7 @@ export async function checkUrlsSequentially(
 		tileCheckingResult.bar2.stop();
 	}
 
-	produceExaminationPages('allDocumentsExamination', zoomlevelzerourls);
+	//produceExaminationPages('allDocumentsExamination', zoomlevelzerourls);
 
 	const result = { docsCounter, bplanCounter, pageCounter, errors, downloadErrors, wgetConfig };
 	console.log('');
@@ -324,7 +328,7 @@ export async function checkUrlsSequentially(
 	);
 	const problemCounter = result.errors.length;
 	if (problemCounter > 0) {
-		console.log('found ' + problemCounter + ' problems and downloaded the originals');
+		console.log('found ' + problemCounter + ' problems.');
 	} else {
 		console.log('no problems. everything seems to be fine');
 	}

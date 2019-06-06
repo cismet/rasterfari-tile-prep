@@ -87,6 +87,54 @@ program
 	});
 
 program
+	.command('checkRetrieveAndTile')
+	.description(
+		'check for missing Plan Documents and download them to the given folder. then start the tiler'
+	)
+	.option(
+		'-l --limit [number of docs]',
+		'Stop after [number of docs] Documents (all Documents if not set)'
+	)
+	.option('-t --tileChecking', 'Check the 0/0 tile on each zoom level')
+	.option(
+		'-d --subDir [dirname]',
+		'Store the retrieved docs in a subfolder named [dirname]. [date] if not set'
+	)
+	.option('-o --out [folder]', 'output folder (_out/[date] when not set)') //.option('-c --collecting [folder]', 'collecting folder');
+	.option(
+		'-p --maxProcesses [max processes]',
+		'maximum of parallel tiling processes (1 when not set)'
+	)
+	.action(function(command) {
+		const tileChecking = command.tileChecking || false;
+		const limit = command.limit || 0;
+		const dirname = command.dirname || yyyymmdd();
+
+		const inputFolder = '_in/' + dirname;
+		const outputFolder = command.out || '_out/' + yyyymmdd();
+		const maxProcesses = command.maxProcesses || 1;
+		const collectingFolder = undefined;
+		checkUrlsSequentially(limit, tileChecking).then((result) => {
+			console.log('try to download the missing documents');
+
+			if (
+				result.wgetConfig.constructor === Object &&
+				Object.entries(result.wgetConfig).length > 0
+			) {
+				wgetFiles(result.wgetConfig, dirname);
+
+				tiler(inputFolder, outputFolder, collectingFolder, maxProcesses, () => {
+					console.log('Done with tiling :-)');
+					bye();
+				});
+			} else {
+				console.log('No errors => no wget => no tiling ;-)');
+				bye();
+			}
+		});
+	});
+
+program
 	.command('produceChecks')
 	.description('produces a set of html files to visually check the new tiles')
 	.option('-i --in [folder]', 'input folder (_in/[date] when not set)')
@@ -107,6 +155,7 @@ program
 		console.log('cmd', cmd);
 		execSync(cmd);
 	});
+
 // case 'checkRetrieveAndTile': {
 // 	if (args.length > 1) {
 // 		parallelThreads = args[1];
