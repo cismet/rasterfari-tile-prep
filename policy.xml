@@ -50,13 +50,13 @@
 -->
 <policymap>
   <!-- <policy domain="resource" name="temporary-path" value="/tmp"/> -->
-  <policy domain="resource" name="memory" value="8GiB"/>
+  <policy domain="resource" name="memory" value="16GiB"/>
   <policy domain="resource" name="map" value="512MiB"/>
   <policy domain="resource" name="width" value="36KP"/>
   <policy domain="resource" name="height" value="36KP"/>
   <policy domain="resource" name="area" value="512MB"/>
-  <policy domain="resource" name="disk" value="16GiB"/>
-  <!-- <policy domain="resource" name="file" value="768"/> -->
+  <policy domain="resource" name="disk" value="128GiB"/>
+  <policy domain="resource" name="file" value="768"/>
   <!-- <policy domain="resource" name="thread" value="4"/> -->
   <!-- <policy domain="resource" name="throttle" value="0"/> -->
   <!-- <policy domain="resource" name="time" value="3600"/> -->

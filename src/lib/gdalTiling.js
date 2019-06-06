@@ -42,7 +42,7 @@ export default function executeTileProcessing(
 			counter++;
 		}
 		async
-			.eachLimit(cmds, 3, (cmdo, done) => {
+			.eachLimit(cmds, parallelProcesses, (cmdo, done) => {
 				let child = child_process.exec(cmdo.cmd, { stdio: 'inherit' }, done);
 				child.stdout.on('data', (data) => {
 					console.log(

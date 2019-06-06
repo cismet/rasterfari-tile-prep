@@ -30,6 +30,7 @@
 		"async": "^3.0.1",
 		"cli-progress": "^2.1.1",
 		"color-hash": "^1.0.3",
+		"commander": "^2.20.0",
 		"find": "^0.3.0",
 		"fs-extra": "^7.0.1"
 	}

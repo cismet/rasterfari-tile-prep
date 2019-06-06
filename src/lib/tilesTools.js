@@ -160,7 +160,7 @@ export async function checkUrlsSequentially(
 	breaking = 0,
 	tileChecking = false,
 	fileSystemChecks = false,
-	localCheckDump = true
+	localCheckDump = false
 ) {
 	let bplc;
 	let i = 0;

@@ -11,7 +11,7 @@ COPY policy.xml /etc/ImageMagick-6/policy.xml
 COPY src/gdal2tiles_ll.py /usr/bin
 RUN chmod +x /usr/bin/gdal2tiles_ll.py
 
-RUN apt-get install -y  apt-utils tzdata locales 
+#RUN apt-get install -y  apt-utils tzdata locales 
 RUN apt-get install -y  convmv
 
 RUN apt-get update -y 
@@ -29,6 +29,10 @@ ENV TERM xterm
 ENV ZSH_THEME blinks
 
 RUN wget https://github.com/robbyrussell/oh-my-zsh/raw/master/tools/install.sh -O - | zsh || true
+
+
+
+RUN apt-get install -y  tzdata locales 
 
 ENV LOCALE en_US
 ENV ENCODING UTF-8
@@ -56,6 +60,16 @@ COPY ./src /app/src
 
 RUN chsh -s /bin/zsh
 
+COPY crontab /etc/cron/crontab
+
+COPY entrypoint.sh /app/
+CMD ["/app/entrypoint.sh"]
 
 
-CMD ["sleep", "infinity"]
+#COPY crontab /var/spool/cron/crontabs/root
+
+#CMD ["sleep", "infinity"]
+
+#ENTRYPOINT "cron"
+
+#CMD ["-f"]

@@ -15,6 +15,7 @@ services:
    - ./_out:/app/_out
    - ./_logs:/app/_logs
    - ./_tilesstoragemount:/app/_tilesstoragemount
+   - ./crontab:/etc/cron/crontab
    ## use this only in dev
    - ./src:/app/src
 

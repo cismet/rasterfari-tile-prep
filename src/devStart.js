@@ -1,3 +1,3 @@
-import tiler from './lib/gdalTiling';
+import { produceExaminationPagesFromTilesFolder } from './lib/examinationPages';
 
-tiler();
+produceExaminationPagesFromTilesFolder('./_out/thisWeek/', '_out/thisWeek/checks');

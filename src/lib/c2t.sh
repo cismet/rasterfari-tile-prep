@@ -20,7 +20,7 @@ correctedtargetpath=$(echo $targetpath | sed "s/ /_/g; s/$(echo -ne 'a\u0308')/a
 
 jpg=pictmpdir/$correctedtargetpath.jpg
 
-function stableconvert {
+function singlePageConvert {
     echo convert """$1""" $2 
     convert -density 300 -background white -alpha remove -quality 100 """$1""" $2 
     if [ $? == 1 ]; then
@@ -28,7 +28,15 @@ function stableconvert {
         gs -o $2.pdf -sDEVICE=pdfwrite -dPDFSETTINGS=/prepress """$1"""
         pdftoppm $2.pdf | pnmtojpeg -quality 100 > $2
     fi
-
+}
+function multiPageConvert {
+    echo convert -density 300 -background white -alpha remove -quality 100 """$1""" $2 
+    convert -density 300 -background white -alpha remove -quality 100 """$1""" $2 
+    if [ $? == 1 ]; then
+        echo imagemagick convert did not work. repair with gs then try again with poppler
+        gs -o $2.pdf -sDEVICE=pdfwrite -dPDFSETTINGS=/prepress """$1"""
+        pdftoppm $2.pdf | pnmtojpeg -quality 100 > $2
+    fi
 }
 
 pdfpages=$(pdfinfo "$srcpdf" | grep -a ^Pages | awk '{print $2}')
@@ -43,13 +51,13 @@ if [ "$pdfpages" -gt "1" ]; then
     countJpgs=$(ls -1 pictmpdir/$correctedtargetpath* 2>/dev/null| wc -l)
     #echo countJpgs "pictmpdir/$correctedtargetpath*" = $countJpgs =?= $pdfpages
     if [ "$pdfpages" -ne "$countJpgs" ]; then
-        stableconvert """$srcpdf""" $jpg 
+        multiPageConvert """$srcpdf""" $jpg 
     fi
 else
     ## check if file exists
     if [ ! -f $jpg ]; then
         echo SinglePage: $jpg does not exist >> missing.txt
-        stableconvert """$srcpdf""" $jpg 
+        singlePageConvert """$srcpdf""" $jpg 
     fi
 fi
 

@@ -1,0 +1,5 @@
+#* * * * * /usr/bin/yarn --cwd /app/ run bplanProcessing --help
+
+# will add >> /proc/1/fd/1 2>/proc/1/fd/2 to each line. so please no further redirecting 
+
+# crontab requires an empty line at the end of the file
