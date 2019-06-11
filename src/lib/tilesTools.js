@@ -215,7 +215,7 @@ export async function checkUrlsSequentially(
 						doclogs[doc.file] = tcobject;
 						downloadsNeeded = downloadsNeeded + doc.url + '\n';
 					} else {
-						console.log('will ignore the != 200 status of ', testbaseurl);
+						console.log('\nwill ignore the != 200 status of ', testbaseurl);
 					}
 				} else {
 					let meta = result.content;

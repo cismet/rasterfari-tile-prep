@@ -87,9 +87,8 @@ export default function produceExaminationPagesFromZoomLevelzeroUrls(
 
 		examinationPageHtml += '</html>';
 		const dir = outFolderForChecks + '/';
-		if (!fs.existsSync(dir)) {
-			fs.mkdirSync(dir);
-		}
+		fs.ensureDirSync(dir);
+
 		const fileName = dir + 'examination-' + chunkIndex + '.html';
 		console.log('write ' + fileName);
 
@@ -101,6 +100,7 @@ export default function produceExaminationPagesFromZoomLevelzeroUrls(
 
 export async function produceExaminationPagesFromTilesFolder(tilesFolder, examinationPagesFolder) {
 	let bplaene = await getBPlanDB();
+
 	const potFolders = [
 		'/bplaene/rechtswirksam/',
 		'/bplaene/verfahren/',
@@ -109,6 +109,7 @@ export async function produceExaminationPagesFromTilesFolder(tilesFolder, examin
 		'/bplaene_dokumente/rechtsverbindlich/'
 	];
 	let urlsWithBPlan = [];
+	console.log('bplaene.length', bplaene.length);
 
 	for (let bpl of bplaene) {
 		let allUrls = bpl.m.plaene_rk.concat(bpl.m.plaene_nrk, bpl.m.docs);
