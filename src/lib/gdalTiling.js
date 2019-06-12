@@ -29,6 +29,7 @@ export default function executeTileProcessing(
 	find.file(/\.pdf$/, inputFolder, function(files) {
 		let counter = 1;
 		for (let file of files) {
+			file = file.replace(/(\s+)/g, '\\$1');
 			let nameWithoutInputFolderPrefix = file.substr(inputFolder.length);
 
 			let cmd =
