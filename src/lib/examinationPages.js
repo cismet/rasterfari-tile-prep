@@ -56,7 +56,8 @@ export default function produceExaminationPagesFromZoomLevelzeroUrls(
 
 	let chunkIndex = 0;
 	for (const c of chunks) {
-		let examinationPageHtml = '<html><style>body {font-family: Arial;}</style>';
+		let examinationPageHtml =
+			'<html><head><meta charset="UTF-8"></head><style>body {font-family: Arial;}</style>';
 		let next, prev;
 		if (chunkIndex !== chunks.length - 1) {
 			next = '<a href="examination-' + (chunkIndex + 1) + '.html"> &gt;&gt; </a>';
