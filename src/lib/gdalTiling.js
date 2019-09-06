@@ -33,11 +33,12 @@ export default function executeTileProcessing(
 			let nameWithoutInputFolderPrefix = file.substr(inputFolder.length);
 
 			let cmd =
-				'./src/lib/c2t.sh ' +
+				'./src/lib/c2t.sh "' +
 				file +
-				' ' +
+				'" "' +
 				outputFolder +
-				fixUrlName(nameWithoutInputFolderPrefix);
+				fixUrlName(nameWithoutInputFolderPrefix) +
+				'"';
 
 			cmds.push({ cmd, counter, nameWithoutInputFolderPrefix });
 			counter++;
