@@ -29,7 +29,7 @@ export default function executeTileProcessing(
 	find.file(/\.pdf$/, inputFolder, function(files) {
 		let counter = 1;
 		for (let file of files) {
-			file = file.replace(/(\s+)/g, '\\$1');
+			//file = file.replace(/(\s+)/g, '\\$1'); //this whitespace replacement conflicts with other whitespace handling
 			let nameWithoutInputFolderPrefix = file.substr(inputFolder.length);
 
 			let cmd =
@@ -39,6 +39,7 @@ export default function executeTileProcessing(
 				outputFolder +
 				fixUrlName(nameWithoutInputFolderPrefix) +
 				'"';
+			console.log(counter + ':' + cmd);
 
 			cmds.push({ cmd, counter, nameWithoutInputFolderPrefix });
 			counter++;

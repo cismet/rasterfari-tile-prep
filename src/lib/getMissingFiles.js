@@ -26,16 +26,24 @@ export default function getMissingFiles(wgetConfig, folder = '.') {
 
 		fs.writeFileSync(fname, wgetList, 'utf8');
 		console.log('written ', fname);
-
 		try {
 			execSync('wget -q -i wgetConfig.urls.txt ', {
 				cwd: dir
 			});
+			console.log('downloaded');
+			console.log(' ------------');
+			console.log(wgetList);
+			console.log(' ------------');
+
 			execSync('rm wgetConfig.urls.txt ', {
 				cwd: dir
 			});
+			console.log('all good will delete wgetConfig.urls.txt');
 		} catch (e) {
-			console.log('fehler', e);
+			console.log('error on wget from ' + fname);
+			console.log(' ------------');
+			console.log(wgetList);
+			console.log(' ------------');
 		}
 	}
 }
