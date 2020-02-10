@@ -1,6 +1,6 @@
-import fs from 'fs-extra';
 import ColorHash from 'color-hash';
-import { getBPlanDB, getBaseUrl, getTileCheckUrls } from './tilesTools';
+import fs from 'fs-extra';
+import { getBaseUrl, getBPlanDB, getTileCheckUrls } from './tilesTools';
 
 const chunk = (arr, size) =>
 	arr.reduce((acc, _, i) => (i % size ? acc : [ ...acc, arr.slice(i, i + size) ]), []);
@@ -99,7 +99,11 @@ export default function produceExaminationPagesFromZoomLevelzeroUrls(
 	}
 }
 
-export async function produceExaminationPagesFromTilesFolder(tilesFolder, examinationPagesFolder) {
+export async function produceExaminationPagesFromTilesFolder(
+	topicname,
+	tilesFolder,
+	examinationPagesFolder
+) {
 	let bplaene = await getBPlanDB();
 
 	const potFolders = [

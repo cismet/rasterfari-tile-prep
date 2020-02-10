@@ -35,6 +35,10 @@ export function fixUrlName(url) {
 		.replace(/ß/g, 'ss');
 }
 
+function getDocFromUrl(url) {
+	return { url, file: url.substring(url.lastIndexOf('/') + 1) };
+}
+
 export function getBaseUrl(doc_url) {
 	return fixUrlName(
 		doc_url
@@ -114,6 +118,79 @@ export async function getBPlanDB(ignoreMD5) {
 	return content;
 }
 
+export async function getAEVDB(ignoreMD5) {
+	const md5Response = await fetch(
+		'https://wunda-geoportal.cismet.de/data/aenderungsv.data.json.md5',
+		{
+			method: 'get',
+			headers: {
+				'User-Agent':
+					'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like ' +
+					'Gecko) Chrome/56.0.2924.87 Safari/537.36',
+				'Cache-Control': 'no-cache'
+			}
+		}
+	);
+	let status = await md5Response.status;
+	let webMD5;
+	if (status === 200) {
+		try {
+			webMD5 = await md5Response.text();
+		} catch (e) {
+			console.log(
+				'Could not download https://wunda-geoportal.cismet.de/data/aenderungsv.data.json.md5. No need to continue.',
+				e
+			);
+			return undefined;
+		}
+	}
+
+	let storedMD5;
+	try {
+		storedMD5 = fs.readFileSync('_internal/aenderungsv.data.json.md5', 'utf8');
+	} catch (e) {
+		storedMD5 = '';
+	}
+	let content;
+
+	if (webMD5 === storedMD5) {
+		console.log('Will get AEVDump from cache.');
+
+		content = JSON.parse(fs.readFileSync('_internal/aenderungsv.data.json', 'utf8'));
+	} else {
+		console.log('Will get AEVDump online.');
+
+		const response = await fetch(
+			'https://wunda-geoportal.cismet.de/data/aenderungsv.data.json',
+			{
+				method: 'get',
+				headers: {
+					'User-Agent':
+						'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like ' +
+						'Gecko) Chrome/56.0.2924.87 Safari/537.36'
+				}
+			}
+		);
+
+		let status = await response.status;
+		if (status === 200) {
+			try {
+				content = await response.json();
+			} catch (e) {
+				console.log('Could not download bplaene_complete.json. No need to continue.', e);
+				return undefined;
+			}
+		}
+		fs.writeFileSync(
+			'_internal/aenderungsv.data.json',
+			JSON.stringify(content, null, 0),
+			'utf8'
+		);
+		fs.writeFileSync('_internal/aenderungsv.data.json.md5', webMD5, 'utf8');
+	}
+	return content;
+}
+
 export async function getMetaInfoForUrl(url, fileSystemChecks = false) {
 	let response;
 	if (!fileSystemChecks) {
@@ -157,6 +234,7 @@ export async function getMetaInfoForUrl(url, fileSystemChecks = false) {
 	}
 }
 export async function checkUrlsSequentially(
+	topicname,
 	breaking = 0,
 	tileChecking = false,
 	fileSystemChecks = false,
@@ -176,83 +254,158 @@ export async function checkUrlsSequentially(
 	let zoomlevelzerourls = [];
 	let wgetConfig = {};
 
+	let bplanCheck = false;
+	let aevCheck = true;
+
 	if (!localCheckDump) {
-		bplc = await getBPlanDB();
-		if (bplc === undefined) {
-			process.exit(1);
-		}
+		if (bplanCheck === true) {
+			bplc = await getBPlanDB();
+			if (bplc === undefined) {
+				process.exit(1);
+			}
+			bar1.start(breaking || bplc.length, 0);
+			for (const bpl of bplc) {
+				bplanCounter++;
+				bar1.update(bplanCounter);
 
-		bar1.start(breaking || bplc.length, 0);
-		for (const bpl of bplc) {
-			bplanCounter++;
-			bar1.update(bplanCounter);
+				let allUrls = bpl.m.plaene_rk.concat(bpl.m.plaene_nrk, bpl.m.docs);
+				let docIndex = 0;
+				let planSection = true;
+				for (const doc of allUrls) {
+					docsCounter++;
+					if (planSection && bpl.m.docs.indexOf(doc) !== -1) {
+						planSection = false;
+						docIndex++; //increment index because of the describing meta document (first document after the real plans)
+					}
+					let testbaseurl = getBaseUrl(doc.url);
 
-			let allUrls = bpl.m.plaene_rk.concat(bpl.m.plaene_nrk, bpl.m.docs);
-			let docIndex = 0;
-			let planSection = true;
-			for (const doc of allUrls) {
-				docsCounter++;
-				if (planSection && bpl.m.docs.indexOf(doc) !== -1) {
-					planSection = false;
-					docIndex++; //increment index because of the describing meta document (first document after the real plans)
-				}
-				let testbaseurl = getBaseUrl(doc.url);
+					let result = await getMetaInfoForUrl(testbaseurl);
+					let status = result.status;
 
-				let result = await getMetaInfoForUrl(testbaseurl);
-				let status = result.status;
+					if (status !== 200) {
+						if (testbaseurl.endsWith('.pdf')) {
+							errors.push(testbaseurl + '/meta.json >> ' + status);
+							//console.log(testbaseurl + '/meta.json) >> ' + status);
 
-				if (status !== 200) {
-					if (testbaseurl.endsWith('.pdf')) {
-						errors.push(testbaseurl + '/meta.json >> ' + status);
-						//console.log(testbaseurl + '/meta.json) >> ' + status);
+							correctionDownloads.push(doc.url);
+							let tcobject = {
+								doc,
+								testbaseurl,
+								testbaseurlstatus: status
+							};
+							doclogs[doc.file] = tcobject;
+							downloadsNeeded = downloadsNeeded + doc.url + '\n';
+						} else {
+							console.log('\nwill ignore the != 200 status of ', testbaseurl);
+						}
+					} else {
+						let meta = result.content;
+						let tilecheckurls = {};
+						let tilecheckurl = getBaseUrl(doc.url);
+						pageCounter += meta.pages;
+						for (let i = 0; i < meta.pages; ++i) {
+							tilecheckurls['page.' + i] = getTileCheckUrls(
+								tilecheckurl,
+								meta.pages,
+								i,
+								meta['layer' + i].maxZoom
+							);
+							let humantesturl = tilecheckurls['page.' + i][0];
+							zoomlevelzerourls.push({
+								bplan: bpl.s,
+								doc,
+								index: docIndex,
+								page: i,
+								humantesturl
+							});
+						}
 
-						correctionDownloads.push(doc.url);
 						let tcobject = {
 							doc,
-							testbaseurl,
-							testbaseurlstatus: status
+							meta,
+							tilecheckurls
 						};
 						doclogs[doc.file] = tcobject;
-						downloadsNeeded = downloadsNeeded + doc.url + '\n';
-					} else {
-						console.log('\nwill ignore the != 200 status of ', testbaseurl);
 					}
-				} else {
-					let meta = result.content;
-					let tilecheckurls = {};
-					let tilecheckurl = getBaseUrl(doc.url);
-					pageCounter += meta.pages;
-					for (let i = 0; i < meta.pages; ++i) {
-						tilecheckurls['page.' + i] = getTileCheckUrls(
-							tilecheckurl,
-							meta.pages,
-							i,
-							meta['layer' + i].maxZoom
-						);
-						let humantesturl = tilecheckurls['page.' + i][0];
-						zoomlevelzerourls.push({
-							bplan: bpl.s,
-							doc,
-							index: docIndex,
-							page: i,
-							humantesturl
-						});
-					}
-
-					let tcobject = {
-						doc,
-						meta,
-						tilecheckurls
-					};
-					doclogs[doc.file] = tcobject;
+					docIndex++;
 				}
-				docIndex++;
-			}
-			i++;
-			if (breaking && i >= breaking) {
-				break;
+				i++;
+				if (breaking && i >= breaking) {
+					break;
+				}
 			}
 		}
+		if (aevCheck === true) {
+			let fnpAEV = await getAEVDB();
+			console.log('fnpAEV', fnpAEV[0]);
+			bar1.start(breaking || fnpAEV.length, 0);
+			let aevCounter = 0;
+			for (const aev of fnpAEV) {
+				aevCounter++;
+				bar1.update(aevCounter);
+				let allUrls = [ getDocFromUrl(aev.url) ];
+				for (const durl of aev.docUrls) {
+					allUrls.push(getDocFromUrl(durl));
+				}
+				let docIndex = 0;
+				for (const doc of allUrls) {
+					let testbaseurl = getBaseUrl(doc.url);
+					let result = await getMetaInfoForUrl(testbaseurl);
+					let status = result.status;
+					if (status !== 200) {
+						if (testbaseurl.endsWith('.pdf')) {
+							errors.push(testbaseurl + '/meta.json >> ' + status);
+							//console.log(testbaseurl + '/meta.json) >> ' + status);
+
+							correctionDownloads.push(doc.url);
+							let tcobject = {
+								doc,
+								testbaseurl,
+								testbaseurlstatus: status
+							};
+							doclogs[doc.file] = tcobject;
+							downloadsNeeded = downloadsNeeded + doc.url + '\n';
+						} else {
+							console.log('\nwill ignore the != 200 status of ', testbaseurl);
+						}
+					} else {
+						let meta = result.content;
+						let tilecheckurls = {};
+						let tilecheckurl = getBaseUrl(doc.url);
+						pageCounter += meta.pages;
+						for (let i = 0; i < meta.pages; ++i) {
+							tilecheckurls['page.' + i] = getTileCheckUrls(
+								tilecheckurl,
+								meta.pages,
+								i,
+								meta['layer' + i].maxZoom
+							);
+							let humantesturl = tilecheckurls['page.' + i][0];
+							zoomlevelzerourls.push({
+								aev: aev.name,
+								doc,
+								index: docIndex,
+								page: i,
+								humantesturl
+							});
+						}
+
+						let tcobject = {
+							doc,
+							meta,
+							tilecheckurls
+						};
+						doclogs[doc.file] = tcobject;
+					}
+					docIndex++;
+				}
+				i++;
+				if (breaking && i >= breaking) {
+					break;
+				}
+			}
+		}
+
 		fs.writeFileSync('_internal/doclogs.json', JSON.stringify(doclogs, null, 2), 'utf8');
 		fs.writeFileSync(
 			'_internal/zoomlevelzerourls.json',
@@ -326,6 +479,8 @@ export async function checkUrlsSequentially(
 			result.pageCounter +
 			' pages altogether'
 	);
+	console.log('result.errors', result.errors);
+
 	const problemCounter = result.errors.length;
 	if (problemCounter > 0) {
 		console.log('found ' + problemCounter + ' problems.');
@@ -341,7 +496,7 @@ export async function checkUrlsSequentially(
 	return result;
 }
 
-async function doTileChecking(nofTilechecks, doclogs, fileSystemChecks, breaking) {
+async function doTileChecking(topicname, nofTilechecks, doclogs, fileSystemChecks, breaking) {
 	let tilechecks = [];
 
 	//counting

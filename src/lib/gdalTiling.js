@@ -11,6 +11,7 @@ import find from 'find';
 import { fixUrlName } from './tilesTools';
 
 export default function executeTileProcessing(
+	topicname,
 	inputFolder = '_in/_dev',
 	outputFolder = '_out/_dev',
 	collectingFolder = '_out/thisWeek',

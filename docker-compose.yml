@@ -18,6 +18,7 @@ services:
    - ./crontab:/etc/cron/crontab
    ## use this only in dev
    - ./src:/app/src
+   - ./package.json:/app/package.json
 
   restart: always
   ## the default command will run rasterfari with 20 threads
