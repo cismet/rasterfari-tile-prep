@@ -1,4 +1,6 @@
-#* * * * * /usr/bin/yarn --cwd /app/ run bplanProcessing --help
+
+30 23 * * * /usr/bin/yarn --cwd /app/ run processing checkRetrieveAndTile --topicname=aev --maxProcesses 8 --upload
+10 22 * * * /usr/bin/yarn --cwd /app/ run processing checkRetrieveAndTile --topicname=bplaene --maxProcesses 8 --upload
 
 # will add >> /proc/1/fd/1 2>/proc/1/fd/2 to each line. so please no further redirecting 
 

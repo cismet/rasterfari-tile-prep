@@ -19,7 +19,9 @@ services:
    ## use this only in dev
    - ./src:/app/src
    - ./package.json:/app/package.json
-
+  
   restart: always
+  extra_hosts:
+   -  "aaa.cismet.de:88.99.101.202"
   ## the default command will run rasterfari with 20 threads
   #command: /bin/bash #yarn run dev-run

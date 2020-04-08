@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs-extra';
 import cliProgress from 'cli-progress';
 import produceExaminationPages from './examinationPages';
+import { slack } from '../processing';
 export function getTileCheckUrls(url, pages, pageNo, maxzoomlevel) {
 	let ret = [];
 	let between = '';
@@ -34,7 +35,7 @@ export function fixUrlName(url) {
 		.replace(/ß/g, 'ss');
 }
 
-function getDocFromUrl(url) {
+export function getDocFromUrl(url) {
 	return { url, file: url.substring(url.lastIndexOf('/') + 1) };
 }
 
@@ -119,7 +120,8 @@ export async function checkUrlsSequentially(
 			downloadsNeeded,
 			doclogs,
 			zoomlevelzerourls,
-			wgetConfig
+			wgetConfig,
+			correctionDownloads
 		} = await getDataForTopic(topicname, bar1, breaking));
 
 		fs.writeFileSync(
@@ -214,6 +216,13 @@ export async function checkUrlsSequentially(
 	const problemCounter = result.errors.length;
 	if (problemCounter > 0) {
 		console.log('found ' + problemCounter + ' problems.');
+		slack(
+			topicname,
+			'Will try to fix ' +
+				problemCounter +
+				' missing or outdated ' +
+				(problemCounter === 1 ? 'file.' : 'files.')
+		);
 	} else {
 		console.log('no problems. everything seems to be fine');
 	}
@@ -403,9 +412,19 @@ export async function getDataForTopic(topicname, bar1, breaking) {
 		downloadsNeeded,
 		doclogs,
 		zoomlevelzerourls,
-		wgetConfig
+		wgetConfig,
+		correctionDownloads
 	};
 }
+
+export async function getDB(topicname, ignoreMD5) {
+	if (topicname === 'bplaene') {
+		return await getBPlanDB(ignoreMD5);
+	} else if (topicname === 'aev') {
+		return await getAEVDB(ignoreMD5);
+	}
+}
+
 async function getBPlanDB(ignoreMD5) {
 	const md5Response = await fetch(
 		'https://wunda-geoportal.cismet.de/gaz/bplaene_complete.json.md5',

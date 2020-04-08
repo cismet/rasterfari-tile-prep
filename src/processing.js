@@ -14,7 +14,13 @@ function yyyymmdd() {
 	let d = x.getDate().toString();
 	d.length == 1 && (d = '0' + d);
 	m.length == 1 && (m = '0' + m);
-	var yyyymmdd = y + m + d;
+	const hh = x.getHours() + '';
+	hh.length == 1 && (hh = '0' + hh);
+	let mm = x.getMinutes() + '';
+	mm.length == 1 && (mm = '0' + mm);
+
+	const yyyymmdd = y + m + d + '.' + hh + mm;
+
 	return yyyymmdd;
 }
 
@@ -83,11 +89,12 @@ program
 	)
 	.option('--topicname [topic]', 'the name of topic the processing should be done for')
 	.action(function(command) {
+		const topicname = command.topicname;
+
 		const inputFolder = command.in || '_in/' + today;
-		const outputFolder = command.out || '_out/' + today;
+		const outputFolder = command.out || '_out/' + today + '.' + topicname;
 		const maxProcesses = command.maxProcesses || 1;
 		const collectingFolder = undefined;
-		const topicname = command.topicname;
 		tiler(topicname, inputFolder, outputFolder, collectingFolder, maxProcesses, () => {
 			console.log('Done with tiling :-)');
 		});
@@ -118,22 +125,25 @@ program
 	.option('-s --skipChecks', 'skip the checkFolder creation')
 	.option('--topicname [topic]', 'the name of topic the processing should be done for')
 	.action(function(command) {
-		console.log('doing shit for x ', command.topicname);
+		console.log('doing stuff for ', command.topicname);
+		const topicname = command.topicname;
 
 		const tileChecking = command.tileChecking || false;
 		const limit = command.limit || 0;
 		const dirname = command.dirname || today;
 
 		const inputFolder = '_in/' + dirname;
-		const outputFolder = command.out || '_out/' + today;
+		const outputFolder = command.out || '_out/' + today + '.' + topicname;
 		const maxProcesses = command.maxProcesses || 1;
 		const collectingFolder = undefined;
 		const upload = command.upload || false;
 		const skipChecks = command.skipChecks || false;
-		const topicname = command.topicname;
+
+		slack(topicname, 'Start processing ...');
 
 		checkUrlsSequentially(topicname, limit, tileChecking).then((result) => {
 			console.log('try to download the missing documents');
+			console.log('results', result);
 
 			if (
 				result.wgetConfig.constructor === Object &&
@@ -150,32 +160,44 @@ program
 					async (error) => {
 						if (error) {
 							console.log('errors during tiling. have a look.', error);
+							slack(topicname, 'Errors during tiling. Have a look at the logs.');
 						} else {
-							console.log('Done with tiling :-)');
+							slack(topicname, 'Tiling done. No Errors');
 
-							if (skipChecks === false) {
-								console.log('Produce the Checkfolder');
-								const checkInputFolder = command.checkIn || '_out/' + today;
-								const checkOutputFolder =
-									command.checkOut || '_out/' + today + '/checks/' + today;
-								await produceExaminationPagesFromTilesFolder(
-									checkInputFolder,
-									checkOutputFolder
-								);
-							}
-
-							if (upload) {
-								const inputFolderUpload = '_out/' + dirname + '/*';
-								const uploadFolder = '_tilesstoragemount/';
-								const cmd = `cp -r ${inputFolderUpload} ${uploadFolder}`;
-								console.log('cmd', cmd);
-								execSync(cmd);
-							}
+							console.log('Produce the Checkfolder');
+							const checkInputFolder =
+								command.checkIn || '_out/' + today + '.' + topicname;
+							const checkOutputFolder =
+								command.checkOut ||
+								'_out/' +
+									today +
+									'.' +
+									topicname +
+									'/checks/' +
+									today +
+									'.' +
+									topicname;
+							await produceExaminationPagesFromTilesFolder(
+								topicname,
+								checkInputFolder,
+								checkOutputFolder
+							);
 						}
+
+						if (upload) {
+							const inputFolderUpload = '_out/' + dirname + '/*';
+							const uploadFolder = '_tilesstoragemount/';
+							const cmd = `cp -r ${inputFolderUpload} ${uploadFolder}`;
+							console.log('cmd', cmd);
+							execSync(cmd);
+							slack(topicname, 'Files uploaded. Done.');
+						}
+
 						bye();
 					}
 				);
 			} else {
+				slack(topicname, 'No errors => no wget => no tiling :wink:');
 				console.log('No errors => no wget => no tiling ;-)');
 				bye();
 			}
@@ -190,8 +212,9 @@ program
 	.option('--topicname [topic]', 'the name of topic the processing should be done for')
 	.action(async function(command) {
 		const inputFolder = command.in || '_out/' + today;
-		const outputFolder = command.out || '_out/' + today + '/checks/' + today;
 		const topicname = command.topicname;
+
+		const outputFolder = command.out || '_out/' + today + '.' + topicname + '/checks/' + today;
 
 		await produceExaminationPagesFromTilesFolder(topicname, inputFolder, outputFolder);
 	});
@@ -221,5 +244,26 @@ program
 // 	console.log('not supported yet');
 // 	break;
 // }
+
+export function slack(topicname, msg) {
+	let silence = false;
+	let topicPrefix;
+	let host = '';
+
+	if (topicname === 'bplaene') {
+		topicPrefix = ':blue_book: B-Pläne: ';
+	} else {
+		topicPrefix = ':green_book: Änderungsverfahren: ';
+	}
+
+	const cmd = `src/lib/slack  -i ":rasterfari:" -m "${topicPrefix}${msg}" -c "wuppertal-support" -u "Rasterfari Tile Prepper ${host}"`;
+	if (silence === false) {
+		execSync(cmd);
+	} else {
+		console.log('SLACK### ' + msg);
+	}
+}
+
+//
 
 program.parse(process.argv);
