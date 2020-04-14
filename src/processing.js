@@ -135,7 +135,7 @@ program
 
 		const tileChecking = command.tileChecking || false;
 		const limit = command.limit || 0;
-		const dirname = command.dirname || today;
+		const dirname = command.dirname || today + '.' + topicname;
 
 		const inputFolder = '_in/' + dirname;
 		const outputFolder = command.out || '_out/' + today + '.' + topicname;
@@ -188,14 +188,17 @@ program
 						}
 
 						if (upload) {
-							const inputFolderUpload = '_out/' + dirname + '/*';
+							let inputFolderUpload = '_out/' + dirname;
 							if (fs.existsSync(inputFolderUpload)) {
+								inputFolderUpload = inputFolderUpload + '/*';
 								const uploadFolder = '_tilesstoragemount/';
 								const cmd = `cp -r ${inputFolderUpload} ${uploadFolder}`;
 								console.log('cmd', cmd);
 								execSync(cmd);
 								slack(topicname, 'Files uploaded. Done.');
 							} else {
+								console.log('No files present to upload in ' + inputFolderUpload);
+
 								slack(topicname, 'No files present to upload. Done.');
 							}
 						}
@@ -305,7 +308,7 @@ program
 // }
 
 export function slack(topicname, msg) {
-	let silence = true;
+	let silence = false;
 	let topicPrefix;
 	let host = '';
 
