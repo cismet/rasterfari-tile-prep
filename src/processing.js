@@ -1,8 +1,10 @@
 import { performance } from 'perf_hooks';
-import { checkUrlsSequentially } from './lib/tilesTools';
+import { checkUrlsSequentially, getDataForTopic } from './lib/tilesTools';
 import tiler from './lib/gdalTiling';
 import { produceExaminationPagesFromTilesFolder } from './lib/examinationPages';
 import { execSync } from 'child_process';
+import cliProgress from 'cli-progress';
+import fs from 'fs-extra';
 
 import wgetFiles from './lib/getMissingFiles';
 import program from 'commander';
@@ -14,7 +16,7 @@ function yyyymmdd() {
 	let d = x.getDate().toString();
 	d.length == 1 && (d = '0' + d);
 	m.length == 1 && (m = '0' + m);
-	const hh = x.getHours() + '';
+	let hh = x.getHours() + '';
 	hh.length == 1 && (hh = '0' + hh);
 	let mm = x.getMinutes() + '';
 	mm.length == 1 && (mm = '0' + mm);
@@ -24,8 +26,11 @@ function yyyymmdd() {
 	return yyyymmdd;
 }
 
-const bye = () => {
-	console.log('done (' + Math.round(performance.now() - start) / 1000 + ' s)');
+const bye = (topicname) => {
+	const msg = 'done (' + Math.round(performance.now() - start) / 1000 + ' s)';
+	console.log(msg);
+	slack(topicname, msg);
+
 	console.log('\ndone will exit');
 	process.exit(0);
 };
@@ -49,8 +54,8 @@ program
 	.action(function(command) {
 		const tileChecking = command.tileChecking || false;
 		const limit = command.limit || 0;
-		checkUrlsSequentially(command.topicname, limit, tileChecking).then((result) => {
-			bye();
+		(command.topicname, limit, tileChecking).then((result) => {
+			bye(command.topicname);
 		});
 	});
 program
@@ -73,8 +78,8 @@ program
 		const topicname = command.topicname;
 		checkUrlsSequentially(topicname, limit, tileChecking).then((result) => {
 			console.log('try to download the missing documents');
-			wgetFiles(result.wgetConfig, dirname);
-			bye();
+			wgetFiles(topicname, result.wgetConfig, dirname);
+			bye(topicname);
 		});
 	});
 
@@ -143,13 +148,11 @@ program
 
 		checkUrlsSequentially(topicname, limit, tileChecking).then((result) => {
 			console.log('try to download the missing documents');
-			console.log('results', result);
-
 			if (
 				result.wgetConfig.constructor === Object &&
 				Object.entries(result.wgetConfig).length > 0
 			) {
-				wgetFiles(result.wgetConfig, dirname);
+				wgetFiles(topicname, result.wgetConfig, dirname);
 
 				tiler(
 					topicname,
@@ -186,20 +189,24 @@ program
 
 						if (upload) {
 							const inputFolderUpload = '_out/' + dirname + '/*';
-							const uploadFolder = '_tilesstoragemount/';
-							const cmd = `cp -r ${inputFolderUpload} ${uploadFolder}`;
-							console.log('cmd', cmd);
-							execSync(cmd);
-							slack(topicname, 'Files uploaded. Done.');
+							if (fs.existsSync(inputFolderUpload)) {
+								const uploadFolder = '_tilesstoragemount/';
+								const cmd = `cp -r ${inputFolderUpload} ${uploadFolder}`;
+								console.log('cmd', cmd);
+								execSync(cmd);
+								slack(topicname, 'Files uploaded. Done.');
+							} else {
+								slack(topicname, 'No files present to upload. Done.');
+							}
 						}
 
-						bye();
+						bye(topicname);
 					}
 				);
 			} else {
 				slack(topicname, 'No errors => no wget => no tiling :wink:');
 				console.log('No errors => no wget => no tiling ;-)');
-				bye();
+				bye(topicname);
 			}
 		});
 	});
@@ -224,13 +231,65 @@ program
 	.option('-i --in [folder]', 'input folder (_in/[date] when not set)')
 	.option('--topicname [topic]', 'the name of topic the processing should be done for')
 	.action(function(command) {
-		const inputFolder = command.in || '_out/' + today + '/*';
-		const outputFolder = '_tilesstoragemount/';
-		const cmd = `cp -r ${inputFolder} ${outputFolder}`;
-		console.log('cmd', cmd);
-		execSync(cmd);
+		const topicname = command.topicname;
+		const inputFolder = command.in || '_out/' + today + '.' + topicname + '/*';
+		if (fs.existsSync(inputFolder)) {
+			const outputFolder = '_tilesstoragemount/';
+			const dir = fs.readdirSync(inputFolder);
+			const cmd = `cp -r ${inputFolder} ${outputFolder}`;
+			console.log('cmd', cmd);
+			execSync(cmd);
+		} else {
+			console.log('no content to copy in ' + inputFolder);
+		}
 	});
+program
+	.command('fixmeta')
+	.description('downloads the meta.json files and add inject ts and size of original doc')
+	.option('-o --out [folder]', 'output folder (_out/[date]/checks/[date] when not set)')
+	.option('--topicname [topic]', 'the name of topic the processing should be done for')
+	.action(function(command) {
+		const go = async () => {
+			const topicname = command.topicname;
 
+			const outputFolder =
+				command.out || '_out/' + today + '.' + topicname + '.metainfcorrection';
+
+			console.log('topicname', topicname);
+			console.log('outputFolder', outputFolder);
+			let correctionDownloads = [];
+			let docsCounter = 0;
+			let pageCounter = 0;
+			let entityCounter = 0;
+			const bar1 = new cliProgress.Bar({}, cliProgress.Presets.shades_classic);
+			let errors = [];
+			let downloadErrors = [];
+			let downloadsNeeded = '';
+			let doclogs = {};
+			let zoomlevelzerourls = [];
+			let wgetConfig = {};
+			let i = 0;
+			let breaking = 0;
+
+			const metaInfCorrection = true;
+			await ({
+				pageCounter,
+				docsCounter,
+				entityCounter,
+				errors,
+				downloadErrors,
+				downloadsNeeded,
+				doclogs,
+				zoomlevelzerourls,
+				wgetConfig,
+				correctionDownloads
+			} = getDataForTopic(topicname, bar1, breaking, metaInfCorrection, outputFolder));
+
+			bye(topicname);
+		};
+
+		go();
+	});
 // case 'checkRetrieveAndTile': {
 // 	if (args.length > 1) {
 // 		parallelThreads = args[1];
@@ -246,7 +305,7 @@ program
 // }
 
 export function slack(topicname, msg) {
-	let silence = false;
+	let silence = true;
 	let topicPrefix;
 	let host = '';
 

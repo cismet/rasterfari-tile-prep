@@ -115,10 +115,14 @@ export default function produceExaminationPagesFromZoomLevelzeroUrls(
 		}
 		chunkIndex++;
 	}
-	slack(
-		topicname,
-		'Preview: https://tilechecks-wupp.cismet.de' + firstLink.replace(/.*checks/, '')
-	);
+	if (firstLink !== undefined) {
+		slack(
+			topicname,
+			'Preview: https://tilechecks-wupp.cismet.de' + firstLink.replace(/.*checks/, '')
+		);
+	} else {
+		slack(topicname, 'No preview for you');
+	}
 }
 
 export async function produceExaminationPagesFromTilesFolder(

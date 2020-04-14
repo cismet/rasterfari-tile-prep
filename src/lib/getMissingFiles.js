@@ -5,8 +5,9 @@ import fs from 'fs-extra';
 import { performance } from 'perf_hooks';
 import cliProgress from 'cli-progress';
 import { execSync } from 'child_process';
+import { slack } from '../processing';
 
-export default function getMissingFiles(wgetConfig, folder = '.') {
+export default function getMissingFiles(topicname, wgetConfig, folder = '.') {
 	if (wgetConfig == undefined) {
 		wgetConfig = JSON.parse(fs.readFileSync('./_internal/wgetConfig.json', 'utf8'));
 	}
@@ -44,6 +45,8 @@ export default function getMissingFiles(wgetConfig, folder = '.') {
 			console.log(' ------------');
 			console.log(wgetList);
 			console.log(' ------------');
+			slack(topicname, 'Error during `wget` one of these files: ' + wgetList);
+			slack(topicname, '... trying to go on.');
 		}
 	}
 }

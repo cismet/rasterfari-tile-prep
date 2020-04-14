@@ -61,7 +61,6 @@ export async function getMetaInfoForUrl(url, fileSystemChecks = false) {
 		});
 
 		let status = response.status;
-
 		let content;
 		if (status === 200) {
 			try {
@@ -235,7 +234,13 @@ export async function checkUrlsSequentially(
 	return result;
 }
 
-export async function getDataForTopic(topicname, bar1, breaking) {
+export async function getDataForTopic(
+	topicname,
+	bar1,
+	breaking,
+	metaInfCorrection = false,
+	outputFolder
+) {
 	let correctionDownloads = [];
 	let docsCounter = 0;
 	let pageCounter = 0;
@@ -345,6 +350,7 @@ export async function getDataForTopic(topicname, bar1, breaking) {
 						let testbaseurl = getBaseUrl(doc.url);
 						let result = await getMetaInfoForUrl(testbaseurl);
 						let status = result.status;
+
 						if (status !== 200) {
 							if (testbaseurl.endsWith('.pdf')) {
 								errors.push(testbaseurl + '/meta.json >> ' + status);
@@ -363,6 +369,11 @@ export async function getDataForTopic(topicname, bar1, breaking) {
 							}
 						} else {
 							let meta = result.content;
+							if (metaInfCorrection) {
+								// console.log('url', doc);
+								// console.log('meta', meta);
+							}
+
 							let tilecheckurls = {};
 							let tilecheckurl = getBaseUrl(doc.url);
 							pageCounter += meta.pages;
@@ -403,6 +414,44 @@ export async function getDataForTopic(topicname, bar1, breaking) {
 		default:
 			break;
 	}
+
+	if (metaInfCorrection) {
+		console.log('\n\n');
+
+		for (const key of Object.keys(doclogs)) {
+			const doc = doclogs[key].doc;
+			//	if (doc.file === 'B1044V.pdf') {
+			//console.log('doclogs[key]', doclogs[key]);
+			//console.log('url=', doc.url);
+			let url;
+			try {
+				url = doc.url.replace(/^http:/, 'https:');
+				const response = await fetch(url, { method: 'HEAD' });
+				const cl = response.headers.get('Content-Length');
+				// console.log('Content-Length', cl);
+				const lm = response.headers.get('Last-Modified');
+				// console.log('Last-Modified', lm);
+
+				doclogs[key].meta.contentLength = cl;
+				doclogs[key].meta.lastModified = lm;
+				// console.log(doc.url + '-->', doclogs[key].meta);
+
+				const path =
+					outputFolder +
+					doc.url
+						.replace(/^http:\/\/www.wuppertal.de\/geoportal/, '')
+						.replace(/^https:\/\/www.wuppertal.de\/geoportal/, '') +
+					'/meta.json';
+				//console.log('write ', path);
+
+				fs.outputFileSync(path, JSON.stringify(doclogs[key].meta, null, 2), 'utf8');
+			} catch (e) {
+				console.log('error when fetching ' + url + ' (' + doc.url + ')');
+			}
+			//}
+		}
+	}
+
 	return {
 		pageCounter,
 		docsCounter,
@@ -487,7 +536,7 @@ async function getBPlanDB(ignoreMD5) {
 		}
 		fs.writeFileSync(
 			'_internal/bplaene_complete.json',
-			JSON.stringify(content, null, 0),
+			JSON.stringify(content, null, 2), //one line: JSON.stringify(content, null, 0)
 			'utf8'
 		);
 		fs.writeFileSync('_internal/bplaene_complete.json.md5', webMD5, 'utf8');
