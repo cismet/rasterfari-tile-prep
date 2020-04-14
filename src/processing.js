@@ -9,6 +9,18 @@ import fs from 'fs-extra';
 import wgetFiles from './lib/getMissingFiles';
 import program from 'commander';
 
+const defaultConfig = {
+	slackEnabled: false
+};
+const loadedConfig = fs.readJsonSync('config.json');
+const config = {
+	...defaultConfig,
+	...loadedConfig
+};
+console.log('--------- config');
+console.log(JSON.stringify(config, null, 2));
+console.log('--------- ');
+
 function yyyymmdd() {
 	let x = new Date();
 	let y = x.getFullYear().toString();
@@ -308,7 +320,6 @@ program
 // }
 
 export function slack(topicname, msg) {
-	let silence = false;
 	let topicPrefix;
 	let host = '';
 
@@ -319,10 +330,10 @@ export function slack(topicname, msg) {
 	}
 
 	const cmd = `src/lib/slack  -i ":rasterfari:" -m "${topicPrefix}${msg}" -c "wuppertal-support" -u "Rasterfari Tile Prepper ${host}"`;
-	if (silence === false) {
+	if (config.slackEnabled === true) {
 		execSync(cmd);
 	} else {
-		console.log('SLACK### ' + msg);
+		console.log('####### ' + msg);
 	}
 }
 
