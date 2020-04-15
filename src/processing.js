@@ -10,10 +10,14 @@ import wgetFiles from './lib/getMissingFiles';
 import program from 'commander';
 
 const defaultConfig = {
-	slackEnabled: false
+	slackEnabled: false,
+	sizeChecks: true,
+	lastModifiedChecks: true,
+	maxChanges: 50,
+	progressBar: true
 };
 const loadedConfig = fs.readJsonSync('config.json');
-const config = {
+export const config = {
 	...defaultConfig,
 	...loadedConfig
 };
@@ -66,7 +70,7 @@ program
 	.action(function(command) {
 		const tileChecking = command.tileChecking || false;
 		const limit = command.limit || 0;
-		(command.topicname, limit, tileChecking).then((result) => {
+		checkUrlsSequentially(command.topicname, limit, tileChecking).then((result) => {
 			bye(command.topicname);
 		});
 	});

@@ -4,7 +4,8 @@ import path from 'path';
 import fs from 'fs-extra';
 import cliProgress from 'cli-progress';
 import produceExaminationPages from './examinationPages';
-import { slack } from '../processing';
+import { slack, config } from '../processing';
+
 export function getTileCheckUrls(url, pages, pageNo, maxzoomlevel) {
 	let ret = [];
 	let between = '';
@@ -48,10 +49,10 @@ export function getBaseUrl(doc_url) {
 	);
 }
 
-export async function getMetaInfoForUrl(url, fileSystemChecks = false) {
+export async function getMetaInfoForUrl({ tileUrl, origUrl, fileSystemChecks = false }) {
 	let response;
 	if (!fileSystemChecks) {
-		response = await fetch(url + '/meta.json', {
+		response = await fetch(tileUrl + '/meta.json', {
 			method: 'get',
 			headers: {
 				'User-Agent':
@@ -62,17 +63,37 @@ export async function getMetaInfoForUrl(url, fileSystemChecks = false) {
 
 		let status = response.status;
 		let content;
+		let origContentLength;
+		let origLastModified;
 		if (status === 200) {
 			try {
 				content = await response.json();
+				if (config.sizeChecks === true || config.lastModifiedChecks === true) {
+					const headResponse = await fetch(origUrl, { method: 'head' });
+					if (config.sizeChecks === true) {
+						origContentLength = headResponse.headers.get('Content-Length');
+						if (content.contentLength !== origContentLength) {
+							status = 303; //see other
+						}
+					}
+					if (config.lastModifiedChecks === true) {
+						origLastModified = headResponse.headers.get('Last-Modified');
+						if (content.lastModified !== origLastModified) {
+							status = 303; //see other
+						}
+					}
+				} else {
+					console.log('no size and last modified check');
+				}
 			} catch (e) {
 				status = 406; //Not Acceptable > no valid json
 			}
 		}
-		return { status, content };
+
+		return { status, content, origContentLength, origLastModified };
 	} else {
 		let file =
-			url.replace('https://aaa.cismet.de/tiles/', './_tilesstoragemount/') + '/meta.json';
+			tileUrl.replace('https://aaa.cismet.de/tiles/', './_tilesstoragemount/') + '/meta.json';
 
 		if (fs.existsSync(file)) {
 			response = {};
@@ -100,7 +121,10 @@ export async function checkUrlsSequentially(
 	let docsCounter = 0;
 	let pageCounter = 0;
 	let entityCounter = 0;
-	const bar1 = new cliProgress.Bar({}, cliProgress.Presets.shades_classic);
+	let bar1;
+	if (config.progressBar === true) {
+		bar1 = new cliProgress.Bar({}, cliProgress.Presets.shades_classic);
+	}
 	let errors = [];
 	let downloadErrors = [];
 	let downloadsNeeded = '';
@@ -260,10 +284,14 @@ export async function getDataForTopic(
 				if (bplc === undefined) {
 					process.exit(1);
 				}
-				bar1.start(breaking || bplc.length, 0);
+				if (config.progressBar === true) {
+					bar1.start(breaking || bplc.length, 0);
+				}
 				for (const bpl of bplc) {
 					entityCounter++;
-					bar1.update(entityCounter);
+					if (config.progressBar === true) {
+						bar1.update(entityCounter);
+					}
 
 					let allUrls = bpl.m.plaene_rk.concat(bpl.m.plaene_nrk, bpl.m.docs);
 					let docIndex = 0;
@@ -276,26 +304,13 @@ export async function getDataForTopic(
 						}
 						let testbaseurl = getBaseUrl(doc.url);
 
-						let result = await getMetaInfoForUrl(testbaseurl);
+						let result = await getMetaInfoForUrl({
+							tileUrl: testbaseurl,
+							origUrl: doc.url
+						});
 						let status = result.status;
 
-						if (status !== 200) {
-							if (testbaseurl.endsWith('.pdf')) {
-								errors.push(testbaseurl + '/meta.json >> ' + status);
-								//console.log(testbaseurl + '/meta.json) >> ' + status);
-
-								correctionDownloads.push(doc.url);
-								let tcobject = {
-									doc,
-									testbaseurl,
-									testbaseurlstatus: status
-								};
-								doclogs[doc.file] = tcobject;
-								downloadsNeeded = downloadsNeeded + doc.url + '\n';
-							} else {
-								console.log('\nwill ignore the != 200 status of ', testbaseurl);
-							}
-						} else {
+						if (status === 200 || (status === 303 && metaInfCorrection === true)) {
 							let meta = result.content;
 							let tilecheckurls = {};
 							let tilecheckurl = getBaseUrl(doc.url);
@@ -323,35 +338,7 @@ export async function getDataForTopic(
 								tilecheckurls
 							};
 							doclogs[doc.file] = tcobject;
-						}
-						docIndex++;
-					}
-					i++;
-					if (breaking && i >= breaking) {
-						break;
-					}
-				}
-			}
-			break;
-
-		case 'aev':
-			{
-				let fnpAEV = await getAEVDB();
-				bar1.start(breaking || fnpAEV.length, 0);
-				for (const aev of fnpAEV) {
-					entityCounter++;
-					bar1.update(entityCounter);
-					let allUrls = [ getDocFromUrl(aev.url) ];
-					for (const durl of aev.docUrls) {
-						allUrls.push(getDocFromUrl(durl));
-					}
-					let docIndex = 0;
-					for (const doc of allUrls) {
-						let testbaseurl = getBaseUrl(doc.url);
-						let result = await getMetaInfoForUrl(testbaseurl);
-						let status = result.status;
-
-						if (status !== 200) {
+						} else {
 							if (testbaseurl.endsWith('.pdf')) {
 								errors.push(testbaseurl + '/meta.json >> ' + status);
 								//console.log(testbaseurl + '/meta.json) >> ' + status);
@@ -367,7 +354,51 @@ export async function getDataForTopic(
 							} else {
 								console.log('\nwill ignore the != 200 status of ', testbaseurl);
 							}
-						} else {
+						}
+						docIndex++;
+					}
+					i++;
+					if (breaking && i >= breaking) {
+						break;
+					}
+					if (errors.length > config.maxChanges && !metaInfCorrection) {
+						slack(
+							topicname,
+							':rotating_light::rotating_light::rotating_light: Error limit is reached. Will ignore the rest. If you need more than ' +
+								config.maxChanges +
+								' errors corrected you need to set the `maxChanges`config higher and run the script again.'
+						);
+						break;
+					}
+				}
+			}
+			break;
+
+		case 'aev':
+			{
+				let fnpAEV = await getAEVDB();
+				if (config.progressBar === true) {
+					bar1.start(breaking || fnpAEV.length, 0);
+				}
+				for (const aev of fnpAEV) {
+					entityCounter++;
+					if (config.progressBar === true) {
+						bar1.update(entityCounter);
+					}
+					let allUrls = [ getDocFromUrl(aev.url) ];
+					for (const durl of aev.docUrls) {
+						allUrls.push(getDocFromUrl(durl));
+					}
+					let docIndex = 0;
+					for (const doc of allUrls) {
+						let testbaseurl = getBaseUrl(doc.url);
+						let result = await getMetaInfoForUrl({
+							tileUrl: testbaseurl,
+							origUrl: doc.url
+						});
+						let status = result.status;
+
+						if (status === 200 || (status === 303 && metaInfCorrection === true)) {
 							let meta = result.content;
 							if (metaInfCorrection) {
 								// console.log('url', doc);
@@ -400,11 +431,37 @@ export async function getDataForTopic(
 								tilecheckurls
 							};
 							doclogs[doc.file] = tcobject;
+						} else {
+							if (testbaseurl.endsWith('.pdf')) {
+								errors.push(testbaseurl + '/meta.json >> ' + status);
+								//console.log(testbaseurl + '/meta.json) >> ' + status);
+
+								correctionDownloads.push(doc.url);
+								let tcobject = {
+									doc,
+									testbaseurl,
+									testbaseurlstatus: status
+								};
+								doclogs[doc.file] = tcobject;
+								downloadsNeeded = downloadsNeeded + doc.url + '\n';
+							} else {
+								console.log('\nwill ignore the != 200 status of ', testbaseurl);
+							}
 						}
 						docIndex++;
 					}
 					i++;
 					if (breaking && i >= breaking) {
+						break;
+					}
+
+					if (errors.length > config.maxChanges && !metaInfCorrection) {
+						slack(
+							topicname,
+							':rotating_light::rotating_light::rotating_light: Error limit is reached. Will ignore the rest. If you need more than ' +
+								config.maxChanges +
+								' errors corrected you need to set the `maxChanges`config higher and run the script again.'
+						);
 						break;
 					}
 				}
@@ -434,7 +491,7 @@ export async function getDataForTopic(
 
 				doclogs[key].meta.contentLength = cl;
 				doclogs[key].meta.lastModified = lm;
-				// console.log(doc.url + '-->', doclogs[key].meta);
+				//console.log(doc.url + '-->', doclogs[key].meta);
 
 				const path =
 					outputFolder +
