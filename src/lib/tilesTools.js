@@ -52,45 +52,67 @@ export function getBaseUrl(doc_url) {
 export async function getMetaInfoForUrl({ tileUrl, origUrl, fileSystemChecks = false }) {
 	let response;
 	if (!fileSystemChecks) {
-		response = await fetch(tileUrl + '/meta.json', {
-			method: 'get',
-			headers: {
-				'User-Agent':
-					'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like ' +
-					'Gecko) Chrome/56.0.2924.87 Safari/537.36'
-			}
-		});
-
-		let status = response.status;
-		let content;
-		let origContentLength;
-		let origLastModified;
-		if (status === 200) {
-			try {
-				content = await response.json();
-				if (config.sizeChecks === true || config.lastModifiedChecks === true) {
-					const headResponse = await fetch(origUrl, { method: 'head' });
-					if (config.sizeChecks === true) {
-						origContentLength = headResponse.headers.get('Content-Length');
-						if (content.contentLength !== origContentLength) {
-							status = 303; //see other
-						}
-					}
-					if (config.lastModifiedChecks === true) {
-						origLastModified = headResponse.headers.get('Last-Modified');
-						if (content.lastModified !== origLastModified) {
-							status = 303; //see other
-						}
-					}
-				} else {
-					console.log('no size and last modified check');
+		let status, content, origContentLength, origLastModified;
+		try {
+			response = await fetch(tileUrl + '/meta.json', {
+				method: 'get',
+				headers: {
+					'User-Agent':
+						'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like ' +
+						'Gecko) Chrome/56.0.2924.87 Safari/537.36'
 				}
-			} catch (e) {
-				status = 406; //Not Acceptable > no valid json
-			}
-		}
+			});
 
-		return { status, content, origContentLength, origLastModified };
+			status = response.status;
+
+			if (status === 200) {
+				try {
+					content = await response.json();
+					if (config.sizeChecks === true || config.lastModifiedChecks === true) {
+						const headResponse = await fetch(origUrl, { method: 'head' });
+						if (config.sizeChecks === true) {
+							origContentLength = headResponse.headers.get('Content-Length');
+							if (content.contentLength !== origContentLength) {
+								status = 303; //see other
+								console.log(
+									'set status 303 for ' +
+										tileUrl +
+										'/meta.json because of Content-Length Header mismatch'
+								);
+							}
+						}
+						if (config.lastModifiedChecks === true) {
+							origLastModified = headResponse.headers.get('Last-Modified');
+							if (content.lastModified !== origLastModified) {
+								status = 303; //see other
+								console.log(
+									'set status 303 for ' +
+										tileUrl +
+										'/meta.json because of Last-Modified Header mismatch'
+								);
+							}
+						}
+					} else {
+						console.log('no size and last modified check');
+					}
+				} catch (e) {
+					status = 406; //Not Acceptable > no valid json
+					console.log('set status 406 for ' + tileUrl + '/meta.json because of error', e);
+				}
+			} else if (status === 404 && origUrl !== undefined) {
+				const headResponse = await fetch(origUrl, { method: 'head' });
+				origContentLength = headResponse.headers.get('Content-Length');
+				origLastModified = headResponse.headers.get('Last-Modified');
+			}
+			// console.log(tileUrl + '/meta.json: ', status);
+			// console.log('return ', { status, content, origContentLength, origLastModified });
+
+			return { status, content, origContentLength, origLastModified };
+		} catch (e) {
+			console.log('fetch error for ' + tileUrl + '/meta.json', e);
+			status = 404;
+			return { status, content, origContentLength, origLastModified };
+		}
 	} else {
 		let file =
 			tileUrl.replace('https://aaa.cismet.de/tiles/', './_tilesstoragemount/') + '/meta.json';
@@ -159,10 +181,17 @@ export async function checkUrlsSequentially(
 		);
 		for (let dl of correctionDownloads) {
 			if (dl.endsWith('.pdf')) {
+				console.log('::dl:', dl);
+				console.log('::path.dirname:', path.dirname(dl));
+
 				const dirKey = path
 					.dirname(dl)
 					.replace(/^https/, 'http')
+					.replace('http://wunda-geoportal-docs.cismet.de/', '')
+					.replace('http://aaa.cismet.de/tiles/static/files', '')
 					.replace('http://www.wuppertal.de/geoportal/', '');
+				console.log('::dirKey:', dirKey);
+
 				if (!fs.existsSync('./_in/' + dirKey + '/' + path.basename(dl))) {
 					if (wgetConfig[dirKey]) {
 						wgetConfig[dirKey].push(dl);
@@ -221,7 +250,15 @@ export async function checkUrlsSequentially(
 
 	//produceExaminationPages('allDocumentsExamination', zoomlevelzerourls);
 
-	const result = { docsCounter, entityCounter, pageCounter, errors, downloadErrors, wgetConfig };
+	const result = {
+		docsCounter,
+		entityCounter,
+		pageCounter,
+		errors,
+		downloadErrors,
+		wgetConfig,
+		doclogs
+	};
 	console.log('');
 	console.log(
 		'checked ' +
@@ -277,7 +314,9 @@ export async function getDataForTopic(
 	let wgetConfig = {};
 	let i = 0;
 
-	switch (topicname) {
+	let topicArr = topicname.split('#');
+
+	switch (topicArr[0]) {
 		case 'bplaene':
 			{
 				const bplc = await getBPlanDB();
@@ -335,9 +374,14 @@ export async function getDataForTopic(
 							let tcobject = {
 								doc,
 								meta,
-								tilecheckurls
+								testbaseurl,
+								testbaseurlstatus: status,
+
+								tilecheckurls,
+								contentLength: result.origContentLength,
+								lastModified: result.origLastModified
 							};
-							doclogs[doc.file] = tcobject;
+							doclogs[doc.url] = tcobject;
 						} else {
 							if (testbaseurl.endsWith('.pdf')) {
 								errors.push(testbaseurl + '/meta.json >> ' + status);
@@ -347,9 +391,11 @@ export async function getDataForTopic(
 								let tcobject = {
 									doc,
 									testbaseurl,
-									testbaseurlstatus: status
+									testbaseurlstatus: status,
+									contentLength: result.origContentLength,
+									lastModified: result.origLastModified
 								};
-								doclogs[doc.file] = tcobject;
+								doclogs[doc.url] = tcobject;
 								downloadsNeeded = downloadsNeeded + doc.url + '\n';
 							} else {
 								console.log('\nwill ignore the != 200 status of ', testbaseurl);
@@ -428,9 +474,13 @@ export async function getDataForTopic(
 							let tcobject = {
 								doc,
 								meta,
-								tilecheckurls
+								testbaseurl,
+								testbaseurlstatus: status,
+								tilecheckurls,
+								contentLength: result.origContentLength,
+								lastModified: result.origLastModified
 							};
-							doclogs[doc.file] = tcobject;
+							doclogs[doc.url] = tcobject;
 						} else {
 							if (testbaseurl.endsWith('.pdf')) {
 								errors.push(testbaseurl + '/meta.json >> ' + status);
@@ -440,9 +490,11 @@ export async function getDataForTopic(
 								let tcobject = {
 									doc,
 									testbaseurl,
-									testbaseurlstatus: status
+									testbaseurlstatus: status,
+									contentLength: result.origContentLength,
+									lastModified: result.origLastModified
 								};
-								doclogs[doc.file] = tcobject;
+								doclogs[doc.url] = tcobject;
 								downloadsNeeded = downloadsNeeded + doc.url + '\n';
 							} else {
 								console.log('\nwill ignore the != 200 status of ', testbaseurl);
@@ -467,45 +519,146 @@ export async function getDataForTopic(
 				}
 			}
 			break;
+		case 'static': {
+			if (topicArr.length == 2) {
+				const topicoption = topicArr[1];
+				let docIndex = 0;
 
+				const dicResponse = await fetch(
+					'https://aaa.cismet.de/tiles/static/docs/' + topicoption + '.json'
+				);
+				let dic = await dicResponse.json();
+				//console.log('static dicResponse.json', dic);
+				let allUrls = [];
+				if (config.progressBar === true) {
+					bar1.start(breaking || dic.docs.length, 0);
+				}
+				for (const doc of dic.docs) {
+					entityCounter++;
+					if (config.progressBar === true) {
+						bar1.update(entityCounter);
+					}
+
+					let testbaseurl = doc.url.replace(
+						dic.tilereplacementrule[0],
+						dic.tilereplacementrule[1]
+					);
+
+					let result = await getMetaInfoForUrl({
+						tileUrl: testbaseurl,
+						origUrl: doc.url
+					});
+					let status = result.status;
+					if (status === 200 || (status === 303 && metaInfCorrection === true)) {
+						let meta = result.content;
+						let tilecheckurls = {};
+						let tilecheckurl = testbaseurl;
+						pageCounter += meta.pages;
+						for (let i = 0; i < meta.pages; ++i) {
+							tilecheckurls['page.' + i] = getTileCheckUrls(
+								tilecheckurl,
+								meta.pages,
+								i,
+								meta['layer' + i].maxZoom
+							);
+							let humantesturl = tilecheckurls['page.' + i][0];
+							zoomlevelzerourls.push({
+								name: doc.title,
+								doc,
+								index: docIndex,
+								page: i,
+								humantesturl
+							});
+						}
+
+						let tcobject = {
+							doc,
+							testbaseurl,
+							testbaseurlstatus: status,
+							meta,
+							tilecheckurls,
+							contentLength: result.origContentLength,
+							lastModified: result.origLastModified
+						};
+
+						doclogs[doc.url] = tcobject;
+					} else {
+						if (testbaseurl.endsWith('.pdf')) {
+							errors.push(testbaseurl + '/meta.json >> ' + status);
+							//console.log(testbaseurl + '/meta.json) >> ' + status);
+
+							correctionDownloads.push(doc.url);
+							let tcobject = {
+								doc,
+								testbaseurl,
+								testbaseurlstatus: status,
+								contentLength: result.origContentLength,
+								lastModified: result.origLastModified
+							};
+							doclogs[doc.url] = tcobject;
+							downloadsNeeded = downloadsNeeded + doc.url + '\n';
+						} else {
+							console.log('\nwill ignore the != 200 status of ', testbaseurl);
+						}
+					}
+					docIndex++;
+				}
+			} else {
+				slack(topicname, 'Error. Further information needed for `static` Topic.');
+			}
+		}
 		default:
 			break;
 	}
 
 	if (metaInfCorrection) {
 		console.log('\n\n');
-
+		// fs.outputFileSync(
+		// 	outputFolder + 'doclogstmp.json',
+		// 	JSON.stringify(doclogs, null, 2),
+		// 	'utf8'
+		// );
 		for (const key of Object.keys(doclogs)) {
 			const doc = doclogs[key].doc;
-			//	if (doc.file === 'B1044V.pdf') {
-			//console.log('doclogs[key]', doclogs[key]);
-			//console.log('url=', doc.url);
-			let url;
-			try {
-				url = doc.url.replace(/^http:/, 'https:');
-				const response = await fetch(url, { method: 'HEAD' });
-				const cl = response.headers.get('Content-Length');
-				// console.log('Content-Length', cl);
-				const lm = response.headers.get('Last-Modified');
-				// console.log('Last-Modified', lm);
 
-				doclogs[key].meta.contentLength = cl;
-				doclogs[key].meta.lastModified = lm;
-				//console.log(doc.url + '-->', doclogs[key].meta);
+			//hier auf 303 prüfen
+			if (doclogs[key].testbaseurlstatus === 303) {
+				//	if (doc.file === 'B1044V.pdf') {
+				//console.log('doclogs[key]', doclogs[key]);
+				//console.log('url=', doc.url);
+				let url;
+				try {
+					url = doc.url.replace(/^http:/, 'https:');
+					// const response = await fetch(url, { method: 'HEAD' });
+					// const cl = response.headers.get('Content-Length');
+					// // console.log('Content-Length', cl);
+					// const lm = response.headers.get('Last-Modified');
+					// // console.log('Last-Modified', lm);
 
-				const path =
-					outputFolder +
-					doc.url
-						.replace(/^http:\/\/www.wuppertal.de\/geoportal/, '')
-						.replace(/^https:\/\/www.wuppertal.de\/geoportal/, '') +
-					'/meta.json';
-				//console.log('write ', path);
+					doclogs[key].meta.contentLength = doclogs[key].contentLength;
+					doclogs[key].meta.lastModified = doclogs[key].lastModified;
+					//console.log(doc.url + '-->', doclogs[key].meta);
+					//console.log('doc', doclogs[key]);
 
-				fs.outputFileSync(path, JSON.stringify(doclogs[key].meta, null, 2), 'utf8');
-			} catch (e) {
-				console.log('error when fetching ' + url + ' (' + doc.url + ')');
+					let url4doc = doclogs[key].testbaseurl;
+
+					const path =
+						outputFolder +
+						url4doc
+							.replace(/^http:\/\/www.wuppertal.de\/geoportal/, '')
+							.replace(/^https:\/\/www.wuppertal.de\/geoportal/, '')
+							.replace('https://aaa.cismet.de/tiles', '')
+							.replace('https://wunda-geoportal-docs.cismet.de', '') +
+						'/meta.json';
+					console.log('write ', path);
+
+					fs.outputFileSync(path, JSON.stringify(doclogs[key].meta, null, 2), 'utf8');
+				} catch (e) {
+					console.log('error', e);
+
+					console.log('error when fetching ' + url + ' (' + doc.url + ')');
+				}
 			}
-			//}
 		}
 	}
 
@@ -672,6 +825,31 @@ async function getAEVDB(ignoreMD5) {
 		fs.writeFileSync('_internal/aenderungsv.data.json.md5', webMD5, 'utf8');
 	}
 	return content;
+}
+
+export async function fixExistingMetaInfoAfterTiling(outfolder, topicname, doclogs) {
+	for (const key in doclogs) {
+		if (doclogs[key].testbaseurlstatus !== 200 && doclogs[key].testbaseurlstatus !== 406) {
+			let file;
+			try {
+				const testbaseurl = doclogs[key].testbaseurl;
+				const folder = testbaseurl.replace('https://aaa.cismet.de/tiles', '');
+				file = outfolder + folder + '/meta.json';
+				const meta = fs.readJsonSync(file);
+				meta.contentLength = doclogs[key].contentLength;
+				meta.lastModified = doclogs[key].lastModified;
+				console.log('correct meta info', meta);
+
+				fs.writeFileSync(
+					outfolder + folder + '/meta.json',
+					JSON.stringify(meta, null, 0),
+					'utf8'
+				);
+			} catch (e) {
+				console.log('error when trying to fix ' + file);
+			}
+		}
+	}
 }
 
 async function doTileChecking(topicname, nofTilechecks, doclogs, fileSystemChecks, breaking) {

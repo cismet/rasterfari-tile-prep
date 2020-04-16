@@ -24,5 +24,6 @@ services:
   restart: always
   extra_hosts:
    -  "aaa.cismet.de:88.99.101.202"
+   -  "www.wuppertal.de:213.240.148.6"
   ## the default command will run rasterfari with 20 threads
   #command: /bin/bash #yarn run dev-run

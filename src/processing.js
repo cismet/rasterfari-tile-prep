@@ -1,5 +1,9 @@
 import { performance } from 'perf_hooks';
-import { checkUrlsSequentially, getDataForTopic } from './lib/tilesTools';
+import {
+	checkUrlsSequentially,
+	getDataForTopic,
+	fixExistingMetaInfoAfterTiling
+} from './lib/tilesTools';
 import tiler from './lib/gdalTiling';
 import { produceExaminationPagesFromTilesFolder } from './lib/examinationPages';
 import { execSync } from 'child_process';
@@ -162,7 +166,7 @@ program
 
 		slack(topicname, 'Start processing ...');
 
-		checkUrlsSequentially(topicname, limit, tileChecking).then((result) => {
+		checkUrlsSequentially(topicname, tileChecking).then((result) => {
 			console.log('try to download the missing documents');
 			if (
 				result.wgetConfig.constructor === Object &&
@@ -182,6 +186,12 @@ program
 							slack(topicname, 'Errors during tiling. Have a look at the logs.');
 						} else {
 							slack(topicname, 'Tiling done. No Errors');
+							//fixing the metainf
+							await fixExistingMetaInfoAfterTiling(
+								outputFolder,
+								topicname,
+								result.doclogs
+							);
 
 							console.log('Produce the Checkfolder');
 							const checkInputFolder =
@@ -237,8 +247,8 @@ program
 	.option('-o --out [folder]', 'output folder (_out/[date]/checks/[date] when not set)') //.option('-c --collecting [folder]', 'collecting folder');
 	.option('--topicname [topic]', 'the name of topic the processing should be done for')
 	.action(async function(command) {
-		const inputFolder = command.in || '_out/' + today;
 		const topicname = command.topicname;
+		const inputFolder = command.in || '_out/' + today + '.' + topicname;
 
 		const outputFolder = command.out || '_out/' + today + '.' + topicname + '/checks/' + today;
 
