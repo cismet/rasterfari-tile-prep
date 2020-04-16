@@ -838,7 +838,7 @@ export async function fixExistingMetaInfoAfterTiling(outfolder, topicname, doclo
 				const meta = fs.readJsonSync(file);
 				meta.contentLength = doclogs[key].contentLength;
 				meta.lastModified = doclogs[key].lastModified;
-				console.log('correct meta info', meta);
+				// console.log('correct meta info', meta);
 
 				fs.writeFileSync(
 					outfolder + folder + '/meta.json',
