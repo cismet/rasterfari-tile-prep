@@ -15,6 +15,7 @@ import program from 'commander';
 
 const defaultConfig = {
 	slackEnabled: false,
+	slackChannel: 'dev_helllth',
 	sizeChecks: true,
 	lastModifiedChecks: true,
 	maxChanges: 50,
@@ -339,11 +340,13 @@ export function slack(topicname, msg) {
 
 	if (topicname === 'bplaene') {
 		topicPrefix = ':blue_book: B-Pläne: ';
-	} else {
+	} else if (topicname === 'aev') {
 		topicPrefix = ':green_book: Änderungsverfahren: ';
+	} else {
+		topicPrefix = ':notebook: Statische Dokumente: ';
 	}
 
-	const cmd = `src/lib/slack  -i ":rasterfari:" -m "${topicPrefix}${msg}" -c "wuppertal-support" -u "Rasterfari Tile Prepper ${host}"`;
+	const cmd = `src/lib/slack  -i ":rasterfari:" -m "${topicPrefix}${msg}" -c "${config.slackChannel}" -u "Rasterfari Tile Prepper ${host}"`;
 	if (config.slackEnabled === true) {
 		execSync(cmd);
 	} else {
