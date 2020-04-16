@@ -194,6 +194,8 @@ export async function produceExaminationPagesFromTilesFolder(
 				});
 			}
 		}
+	} else if (topicname.startsWith('static')) {
+		slack(topicname, 'no preview at the moment for static documents');
 	} else {
 		console.log(
 			'######## ERROR: unknown topic' +
