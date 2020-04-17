@@ -686,7 +686,7 @@ export async function getDB(topicname, ignoreMD5) {
 
 async function getBPlanDB(ignoreMD5) {
 	const md5Response = await fetch(
-		'https://wunda-geoportal.cismet.de/gaz/bplaene_complete.json.md5',
+		'https://wunda-geoportal.cismet.de/data/bplaene.data.json.md5',
 		{
 			method: 'get',
 			headers: {
@@ -703,14 +703,14 @@ async function getBPlanDB(ignoreMD5) {
 		try {
 			webMD5 = await md5Response.text();
 		} catch (e) {
-			console.log('Could not download bplaene_complete.json.md5. No need to continue.', e);
+			console.log('Could not download bplaene.data.json.md5. No need to continue.', e);
 			return undefined;
 		}
 	}
 
 	let storedMD5;
 	try {
-		storedMD5 = fs.readFileSync('_internal/bplaene_complete.json.md5', 'utf8');
+		storedMD5 = fs.readFileSync('_internal/bplaene.data.json.md5', 'utf8');
 	} catch (e) {
 		storedMD5 = '';
 	}
@@ -719,28 +719,25 @@ async function getBPlanDB(ignoreMD5) {
 	if (webMD5 === storedMD5) {
 		console.log('Will get PlanDump from cache.');
 
-		content = JSON.parse(fs.readFileSync('_internal/bplaene_complete.json', 'utf8'));
+		content = JSON.parse(fs.readFileSync('_internal/bplaene.data.json', 'utf8'));
 	} else {
 		console.log('Will get PlanDump online.');
 
-		const response = await fetch(
-			'https://wunda-geoportal.cismet.de/gaz/bplaene_complete.json',
-			{
-				method: 'get',
-				headers: {
-					'User-Agent':
-						'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like ' +
-						'Gecko) Chrome/56.0.2924.87 Safari/537.36'
-				}
+		const response = await fetch('https://wunda-geoportal.cismet.de/data/bplaene.data.json', {
+			method: 'get',
+			headers: {
+				'User-Agent':
+					'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like ' +
+					'Gecko) Chrome/56.0.2924.87 Safari/537.36'
 			}
-		);
+		});
 
 		let status = await response.status;
 		if (status === 200) {
 			try {
 				content = await response.json();
 			} catch (e) {
-				console.log('Could not download bplaene_complete.json. No need to continue.', e);
+				console.log('Could not download bplaene.data.json. No need to continue.', e);
 				return undefined;
 			}
 		}
@@ -749,7 +746,7 @@ async function getBPlanDB(ignoreMD5) {
 			JSON.stringify(content, null, 2), //one line: JSON.stringify(content, null, 0)
 			'utf8'
 		);
-		fs.writeFileSync('_internal/bplaene_complete.json.md5', webMD5, 'utf8');
+		fs.writeFileSync('_internal/bplaene.data.json.md5', webMD5, 'utf8');
 	}
 	return content;
 }
