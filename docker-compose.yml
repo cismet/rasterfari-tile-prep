@@ -2,7 +2,7 @@ version: '2'
 
 services:
  rasterfari-bpl-prep:
-  image: cismet/rasterfari-tile-prep-bplaene:latest
+  image:  cismet/rasterfari-tile-prep-bplaene:1.0.3
   network_mode: bridge
   volumes:
    - ./.zshrc:/root/.zshrc
@@ -13,12 +13,19 @@ services:
    - ./_in:/app/_in
    - ./_internal:/app/_internal
    - ./_out:/app/_out
+   - ./_tarout:/app/_tarout
    - ./_logs:/app/_logs
    - ./_tilesstoragemount:/app/_tilesstoragemount
+   - ./_tartilesstoragemount:/app/_tartilesstoragemount
    - ./crontab:/etc/cron/crontab
+   - ./config.json:/app/config.json
    ## use this only in dev
    - ./src:/app/src
-
+   - ./package.json:/app/package.json
+  
   restart: always
+  extra_hosts:
+   -  "aaa.cismet.de:88.99.101.202"
+   -  "www.wuppertal.de:213.240.148.6"
   ## the default command will run rasterfari with 20 threads
   #command: /bin/bash #yarn run dev-run

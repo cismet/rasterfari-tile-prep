@@ -8,4 +8,5 @@ _*
 .githash
 .version
 .package.json.without.version
+src/lib/slack
 

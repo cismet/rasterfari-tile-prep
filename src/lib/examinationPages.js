@@ -1,6 +1,7 @@
-import fs from 'fs-extra';
 import ColorHash from 'color-hash';
-import { getBPlanDB, getBaseUrl, getTileCheckUrls } from './tilesTools';
+import fs from 'fs-extra';
+import { getBaseUrl, getDocFromUrl, getDB, getTileCheckUrls } from './tilesTools';
+import { slack } from '../processing';
 
 const chunk = (arr, size) =>
 	arr.reduce((acc, _, i) => (i % size ? acc : [ ...acc, arr.slice(i, i + size) ]), []);
@@ -14,6 +15,7 @@ const docViewerService = 'https://alpha-wunda-geoportal.cismet.de';
 //const docViewerService = 'http://localhost:3000';
 
 export default function produceExaminationPagesFromZoomLevelzeroUrls(
+	topicname,
 	outFolderForChecks,
 	zoomlevelzerourls
 ) {
@@ -22,13 +24,26 @@ export default function produceExaminationPagesFromZoomLevelzeroUrls(
 
 	for (const check of zoomlevelzerourls) {
 		let c = getColor(
-			check.index + 1 + '.' + check.bplan + '...' + (check.index + 1) + '...' + check.doc.file
+			check.index + 1 + '.' + check.key + '...' + (check.index + 1) + '...' + check.doc.file
 		);
+		let docid;
+		if (topicname === 'bplaene') {
+			docid = 'bplaene';
+		} else if ((topicname = 'aev')) {
+			docid = 'aenderungsv';
+		} else {
+			'######## ERROR: unknown topic' +
+				topicname +
+				' (produceExaminationPagesFromZoomLevelzeroUrls has to be bextended)';
+		}
+
 		imagelinks.push(
 			'<div style="float: left;"><a target="_docviewer" href="' +
 				docViewerService +
-				'/#/docs/bplaene/' +
-				check.bplan +
+				'/#/docs/' +
+				docid +
+				'/' +
+				check.key +
 				'/' +
 				(check.index + 1) +
 				'/' +
@@ -36,7 +51,7 @@ export default function produceExaminationPagesFromZoomLevelzeroUrls(
 				'"><img style="background:' +
 				c +
 				';" title="' +
-				check.bplan +
+				check.key +
 				'.' +
 				(check.index + 1) +
 				'.' +
@@ -44,7 +59,7 @@ export default function produceExaminationPagesFromZoomLevelzeroUrls(
 				'" src="' +
 				check.humantesturl +
 				'"/></a><div> &uarr;' +
-				check.bplan +
+				check.key +
 				'/' +
 				(check.index + 1) +
 				'/' +
@@ -55,6 +70,7 @@ export default function produceExaminationPagesFromZoomLevelzeroUrls(
 	let chunks = chunk(imagelinks, 500);
 
 	let chunkIndex = 0;
+	let firstLink;
 	for (const c of chunks) {
 		let examinationPageHtml =
 			'<html><head><meta charset="UTF-8"></head><style>body {font-family: Arial;}</style>';
@@ -94,51 +110,111 @@ export default function produceExaminationPagesFromZoomLevelzeroUrls(
 		console.log('write ' + fileName);
 
 		fs.writeFileSync(fileName, examinationPageHtml, 'utf8');
-
+		if (firstLink === undefined) {
+			firstLink = fileName;
+		}
 		chunkIndex++;
+	}
+	if (firstLink !== undefined) {
+		slack(
+			topicname,
+			'Preview: https://tilechecks-wupp.cismet.de' + firstLink.replace(/.*checks/, '')
+		);
+	} else {
+		slack(topicname, 'No preview for you');
 	}
 }
 
-export async function produceExaminationPagesFromTilesFolder(tilesFolder, examinationPagesFolder) {
-	let bplaene = await getBPlanDB();
+export async function produceExaminationPagesFromTilesFolder(
+	topicname,
+	tilesFolder,
+	examinationPagesFolder
+) {
+	console.log('produceExaminationPagesFromTilesFolder for ' + topicname);
+	console.log('tilesFolder=' + tilesFolder);
+	console.log('examinationPagesFolder=' + examinationPagesFolder);
 
-	const potFolders = [
-		'/bplaene/rechtswirksam/',
-		'/bplaene/verfahren/',
-		'/bplaene_dokumente/abgelaufen/',
-		'/bplaene_dokumente/im_Verfahren/',
-		'/bplaene_dokumente/rechtsverbindlich/'
-	];
-	let urlsWithBPlan = [];
-	console.log('bplaene.length', bplaene.length);
+	//const data = await getDataForTopic(topicname);
 
-	for (let bpl of bplaene) {
-		let allUrls = bpl.m.plaene_rk.concat(bpl.m.plaene_nrk, bpl.m.docs);
-		let docIndex = 0;
-		let planSection = true;
-		let x = 0;
-		for (let url of allUrls) {
-			if (planSection && bpl.m.docs.indexOf(url) !== -1) {
-				planSection = false;
+	let urls = [];
+	let potFolders = [];
+	if (topicname === 'bplaene') {
+		let bplaene = await getDB(topicname);
+
+		potFolders = [
+			'/bplaene/rechtswirksam/',
+			'/bplaene/verfahren/',
+			'/bplaene_dokumente/abgelaufen/',
+			'/bplaene_dokumente/im_Verfahren/',
+			'/bplaene_dokumente/rechtsverbindlich/'
+		];
+		console.log('bplaene.length', bplaene.length);
+
+		for (let bpl of bplaene) {
+			let allUrls = bpl.m.plaene_rk.concat(bpl.m.plaene_nrk, bpl.m.docs);
+			let docIndex = 0;
+			let planSection = true;
+			let x = 0;
+			for (let url of allUrls) {
+				if (planSection && bpl.m.docs.indexOf(url) !== -1) {
+					planSection = false;
+					docIndex++; //increment index because of the describing meta document (first document after the real plans)
+				}
+				urls.push({
+					nummer: bpl.s,
+					index: docIndex++,
+					url: getBaseUrl(url.url).replace('https://aaa.cismet.de/tiles', '')
+				});
+			}
+		}
+	} else if (topicname === 'aev') {
+		let aevs = await getDB(topicname);
+		potFolders = [
+			'/FNP_Aenderungen/Karten/',
+			'/fnp_dokumente/im_Verfahren/',
+			'/fnp_dokumente/rechtsverbindlich/'
+		];
+
+		for (let aev of aevs) {
+			let docIndex = 0;
+
+			urls.push({
+				nummer: aev.name,
+				index: docIndex++,
+				url: getBaseUrl(aev.url).replace('https://aaa.cismet.de/tiles', '')
+			});
+			if (aev.docUrls.length > 0) {
 				docIndex++; //increment index because of the describing meta document (first document after the real plans)
 			}
-			urlsWithBPlan.push({
-				nummer: bpl.s,
-				index: docIndex++,
-				url: getBaseUrl(url.url).replace('https://aaa.cismet.de/tiles', '')
-			});
+			for (const durl of aev.docUrls) {
+				urls.push({
+					nummer: aev.name,
+					index: docIndex++,
+					url: getBaseUrl(durl).replace('https://aaa.cismet.de/tiles', '')
+				});
+			}
 		}
+	} else if (topicname.startsWith('static')) {
+		slack(topicname, 'no preview at the moment for static documents');
+	} else {
+		console.log(
+			'######## ERROR: unknown topic' +
+				topicname +
+				' (produceExaminationPagesFromTilesFolder has to be bextended)'
+		);
 	}
 
-	console.log('urlsWithBPlan.length', urlsWithBPlan.length);
+	console.log('urls.length', urls.length);
 
 	let hits = [];
 	for (let folder of potFolders) {
 		try {
+			// console.log('try ' + tilesFolder + folder);
 			let filesInFolder = fs.readdirSync(tilesFolder + folder);
+			console.log('hit ' + tilesFolder + folder);
 
 			for (let file of filesInFolder) {
-				let found = urlsWithBPlan.filter((x) => {
+				let found = urls.filter((x) => {
 					return x.url === folder + file;
 				});
 
@@ -146,7 +222,10 @@ export async function produceExaminationPagesFromTilesFolder(tilesFolder, examin
 					hits = hits.concat(found);
 				}
 			}
-		} catch (e) {}
+		} catch (e) {
+			// console.log('failed ' + tilesFolder + folder);
+			// console.log('error desc', e);
+		}
 	}
 
 	let metaInfErrors = [];
@@ -164,7 +243,7 @@ export async function produceExaminationPagesFromTilesFolder(tilesFolder, examin
 		if (metaInf) {
 			for (let p = 0; p < metaInf.pages; ++p) {
 				let zoomlevelzerourl = {
-					bplan: hit.nummer,
+					key: hit.nummer,
 					doc: {
 						file: 'not needed',
 						url: hit.url
@@ -184,7 +263,7 @@ export async function produceExaminationPagesFromTilesFolder(tilesFolder, examin
 	}
 
 	console.log('Anzahl Layer', hits.length);
-
+	slack(topicname, 'Number of created Tile-Layers: ' + hits.length);
 	console.log('Anzahl metaInf Errors', metaInfErrors.length);
 	for (let error of metaInfErrors) {
 		console.log(
@@ -193,5 +272,9 @@ export async function produceExaminationPagesFromTilesFolder(tilesFolder, examin
 		);
 	}
 
-	produceExaminationPagesFromZoomLevelzeroUrls(examinationPagesFolder, zoomlevelzerourls);
+	produceExaminationPagesFromZoomLevelzeroUrls(
+		topicname,
+		examinationPagesFolder,
+		zoomlevelzerourls
+	);
 }
